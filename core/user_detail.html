@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }} - Inventory System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">{{ title }}</h1>
+        <div>
+            <a href="{% url 'core:user_edit' user_obj.id %}" class="btn btn-warning">
+                <i class="fas fa-edit fa-sm"></i> Edit User
+            </a>
+            <a href="{% url 'core:user_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left fa-sm"></i> Back to Users
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="m-0 font-weight-bold">User Information</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <tr>
+                            <th width="30%">Username:</th>
+                            <td>{{ user_obj.username }}</td>
+                        </tr>
+                        <tr>
+                            <th>Full Name:</th>
+                            <td>{{ user_obj.get_full_name|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Email:</th>
+                            <td>{{ user_obj.email }}</td>
+                        </tr>
+                        <tr>
+                            <th>Role:</th>
+                            <td>
+                                <span class="badge badge-{% if user_obj.profile.role == 'admin' %}danger{% else %}info{% endif %}">
+                                    {{ user_obj.profile.get_role_display }}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Assigned Location:</th>
+                            <td>
+                                {% if user_obj.profile.assigned_location %}
+                                    {{ user_obj.profile.assigned_location.name }}
+                                {% else %}
+                                    <span class="text-muted">All Locations (Admin)</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Status:</th>
+                            <td>
+                                {% if user_obj.is_active %}
+                                    <span class="badge badge-success">Active</span>
+                                {% else %}
+                                    <span class="badge badge-secondary">Inactive</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Staff Status:</th>
+                            <td>
+                                {% if user_obj.is_staff %}
+                                    <span class="badge badge-primary">Staff</span>
+                                {% else %}
+                                    <span class="badge badge-secondary">Non-Staff</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Date Joined:</th>
+                            <td>{{ user_obj.date_joined|date:"M d, Y H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Last Login:</th>
+                            <td>
+                                {% if user_obj.last_login %}
+                                    {{ user_obj.last_login|date:"M d, Y H:i" }}
+                                {% else %}
+                                    <span class="text-muted">Never</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="m-0 font-weight-bold">Access Information</h6>
+                </div>
+                <div class="card-body">
+                    <h6>Location Access:</h6>
+                    <ul>
+                        {% if user_obj.profile.can_access_all_locations %}
+                            <li><strong>All Locations</strong> - Full access to all locations in the system</li>
+                        {% elif user_obj.profile.assigned_location %}
+                            <li><strong>{{ user_obj.profile.assigned_location.name }}</strong> - Access limited to this location only</li>
+                        {% else %}
+                            <li><span class="text-danger">No location assigned - User cannot access any inventory data</span></li>
+                        {% endif %}
+                    </ul>
+
+                    <h6>Permissions:</h6>
+                    <ul>
+                        {% if user_obj.profile.role == 'admin' %}
+                            <li>Full system administration</li>
+                            <li>User management</li>
+                            <li>All location access</li>
+                            <li>System configuration</li>
+                        {% elif user_obj.profile.role == 'location_manager' %}
+                            <li>Manage location operations</li>
+                            <li>View location reports</li>
+                            <li>Process sales and purchases</li>
+                            <li>Manage location stock</li>
+                        {% elif user_obj.profile.role == 'cashier' %}
+                            <li>Process sales</li>
+                            <li>View location stock</li>
+                            <li>Basic operations only</li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

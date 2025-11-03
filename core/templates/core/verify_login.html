@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Verify Login - {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Verify Your Login</h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">
+                        We've sent a verification code to <strong>{{ pending_email }}</strong>.
+                        Please enter the code below to complete your login.
+                    </p>
+                    
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="verification_code" class="form-label">Verification Code</label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="verification_code" 
+                                   name="verification_code" 
+                                   placeholder="Enter 6-digit code" 
+                                   required
+                                   maxlength="6"
+                                   pattern="[0-9]{6}">
+                            <div class="form-text">Enter the 6-digit code sent to your email.</div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Verify & Login</button>
+                        </div>
+                    </form>
+                    
+                    <div class="mt-3 text-center">
+                        <form method="post" action="{% url 'core:resend_login_code' %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-secondary btn-sm">
+                                Resend Verification Code
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <div class="mt-3 text-center">
+                        <a href="{% url 'account_logout' %}" class="text-muted">Not you? Use different account</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- In your verify_login.html template -->
+<form method="post">
+    {% csrf_token %}
+    <!-- Add hidden field to preserve verification ID -->
+    <input type="hidden" name="verification_id" value="{{ verification_id }}">
+    
+    <div class="form-group">
+        <label for="verification_code">Verification Code</label>
+        <input type="text" name="verification_code" id="verification_code" 
+               class="form-control" placeholder="Enter 6-digit code" required>
+    </div>
+    
+    <button type="submit" class="btn btn-primary">Verify Login</button>
+</form>
+{% endblock %}

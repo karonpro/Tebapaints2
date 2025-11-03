@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Transaction Detail</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f0f2f5; padding: 20px; }
+        h1 { text-align: center; color: #333; margin-bottom: 20px; }
+        .detail-container { max-width: 600px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .field { margin-bottom: 15px; }
+        .field label { font-weight: bold; display: block; margin-bottom: 5px; }
+        .field span { display: block; background: #f9f9f9; padding: 8px; border-radius: 4px; }
+        .btn { display: inline-block; margin-top: 20px; padding: 8px 16px; background-color: #4facfe; color: #fff; text-decoration: none; border-radius: 8px; transition: all 0.3s ease; }
+        .btn:hover { background-color: #00f2fe; }
+    </style>
+</head>
+<body>
+    <h1>Transaction #{{ transaction.id }}</h1>
+    <div class="detail-container">
+        <div class="field">
+            <label>Accounts:</label>
+            <span>{{ transaction.accounts|default:"N/A" }}</span>
+        </div>
+        <div class="field">
+            <label>Cash:</label>
+            <span>{{ transaction.cash|default:"0" }}</span>
+        </div>
+        <div class="field">
+            <label>Type:</label>
+            <span>{{ transaction.transaction_type|default:"-" }}</span>
+        </div>
+        <div class="field">
+            <label>Date:</label>
+            <span>{{ transaction.date|date:"Y-m-d" }}</span>
+        </div>
+        <div class="field">
+            <label>Notes:</label>
+            <span>{{ transaction.notes|default:"-" }}</span>
+        </div>
+        <a href="{% url 'transactions:report_daily' %}" class="btn">Back to Report</a>
+    </div>
+</body>
+</html>

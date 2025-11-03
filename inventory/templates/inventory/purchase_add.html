@@ -1,0 +1,580 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-white">Add New Purchase</h2>
+        <a href="{% url 'inventory:purchase_list' %}" class="btn btn-outline-secondary">
+            ← Back to Purchases
+        </a>
+    </div>
+
+    <!-- Display messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header" style="background: #1e293b; border-bottom: 1px solid #374151;">
+            <h5 class="card-title mb-0 text-white">Purchase Information</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" id="purchaseForm">
+                {% csrf_token %}
+                
+                <!-- Supplier & Location Information -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Supplier Name *</label>
+                            <input type="text" name="supplier_name" class="form-control" 
+                                   placeholder="Enter supplier name" required style="background: var(--card); border: 1px solid #374151; color: var(--muted);">
+                            <div class="form-text text-muted">Name of the company or person you're buying from</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Location *</label>
+                            <select name="location" class="form-select" required style="background: var(--card); border: 1px solid #374151; color: var(--muted);">
+                                <option value="">Select Location</option>
+                                {% for location in locations %}
+                                    <option value="{{ location.id }}">{{ location.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text text-muted">Where this stock will be stored</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Date Information -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Purchase Date *</label>
+                            <input type="datetime-local" name="purchase_date" class="form-control" 
+                                   value="{{ default_date }}" required style="background: var(--card); border: 1px solid #374151; color: var(--muted);">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <textarea name="notes" class="form-control" rows="2" 
+                                      placeholder="Any additional notes about this purchase..." style="background: var(--card); border: 1px solid #374151; color: var(--muted);"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Products Section -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="text-white">Products</h5>
+                        <button type="button" class="btn btn-primary" id="addProductBtn">
+                            <i class="fas fa-plus"></i> Add Product
+                        </button>
+                    </div>
+
+                    <!-- Products Table -->
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover" id="productsTable">
+                            <thead class="table-light" style="background: #1e293b; color: var(--muted);">
+                                <tr>
+                                    <th width="40%">Product</th>
+                                    <th width="15%">Quantity</th>
+                                    <th width="20%">Unit Price</th>
+                                    <th width="15%">Total</th>
+                                    <th width="10%" class="text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Product rows will be added here dynamically -->
+                            </tbody>
+                            <tfoot class="table-light" style="background: #1e293b; color: var(--muted);">
+                                <tr>
+                                    <td colspan="3" class="text-end fw-bold">Grand Total:</td>
+                                    <td colspan="2" class="fw-bold text-success">
+                                        $<span id="grandTotal">0.00</span>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Hidden field for products data -->
+                <input type="hidden" name="items_data" id="itemsData" value="[]">
+
+                <!-- Form Actions -->
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Save Purchase
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="resetButton">
+                        <i class="fas fa-undo"></i> Reset Form
+                    </button>
+                    <a href="{% url 'inventory:purchase_list' %}" class="btn btn-outline-danger">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript Libraries -->
+<script src="{% static 'admin/jquery/jquery-3.7.1.min.js' %}"></script>
+<script src="{% static 'admin/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'admin/select2/js/select2.full.min.js' %}"></script>
+<link rel="stylesheet" href="{% static 'admin/select2/css/select2.min.css' %}">
+
+<script>
+$(document).ready(function() {
+    console.log('Document ready - initializing purchase form');
+    
+    let rowCounter = 0;
+    
+    // Store product prices in localStorage for purchases
+    let productPrices = JSON.parse(localStorage.getItem('productPurchasePrices') || '{}');
+
+    // SAVE PRODUCT PRICE TO LOCALSTORAGE
+    function saveProductPrice(productId, price) {
+        productPrices[productId] = price;
+        localStorage.setItem('productPurchasePrices', JSON.stringify(productPrices));
+        console.log('Saved purchase price for product', productId, ':', price);
+    }
+
+    // GET SAVED PRODUCT PRICE
+    function getSavedPrice(productId) {
+        return productPrices[productId] || null;
+    }
+
+    // FUNCTION TO INITIALIZE SELECT2 WITH AJAX SEARCH AND PRICE MEMORY
+    function initializeProductSelect(selectElement) {
+        selectElement.select2({
+            placeholder: "Search for a product by name or SKU...",
+            allowClear: true,
+            minimumInputLength: 2,
+            ajax: {
+                url: "{% url 'inventory:product_search_api' %}",
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        q: params.term,
+                        page: params.page
+                    };
+                },
+                processResults: function (data, params) {
+                    params.page = params.page || 1;
+                    return {
+                        results: data.products.map(function(product) {
+                            // Check if we have a saved price for this product
+                            let savedPrice = getSavedPrice(product.id);
+                            let priceInfo = savedPrice ? 
+                                ` - Last: $${savedPrice}` : 
+                                ` - Cost: $${product.cost_price}`;
+                            
+                            return {
+                                id: product.id,
+                                text: product.name + ' (' + product.sku + ')' + priceInfo,
+                                cost_price: product.cost_price,
+                                saved_price: savedPrice
+                            };
+                        }),
+                        pagination: {
+                            more: false
+                        }
+                    };
+                },
+                cache: true
+            },
+            templateResult: function(product) {
+                if (product.loading) {
+                    return product.text;
+                }
+                
+                var $container = $(
+                    '<div class="product-option">' +
+                        '<div class="product-name"><strong>' + product.text + '</strong></div>' +
+                    '</div>'
+                );
+                
+                return $container;
+            },
+            templateSelection: function(product) {
+                return product.text || product.name || "Select a product...";
+            }
+        });
+    }
+
+    function createProductRow() {
+        rowCounter++;
+        let row = $('<tr class="product-row">').attr('data-row-id', rowCounter);
+        
+        // Product select cell with Select2
+        let productCell = $('<td>');
+        let productSelect = $('<select class="form-select product_select" data-row="' + rowCounter + '" style="background: var(--card); border: 1px solid #374151; color: var(--muted);">')
+            .append('<option value=""></option>');
+        productCell.append(productSelect);
+        
+        // Quantity cell
+        let qtyCell = $('<td>');
+        let qtyInput = $('<input type="number" class="form-control quantity" name="quantity" min="1" value="1" required style="background: var(--card); border: 1px solid #374151; color: var(--muted);">');
+        qtyCell.append(qtyInput);
+        
+        // Unit Price cell
+        let priceCell = $('<td>');
+        let priceInput = $('<input type="number" class="form-control unit-price" name="unit_price" step="0.01" min="0.01" required style="background: var(--card); border: 1px solid #374151; color: var(--muted);">');
+        priceCell.append(priceInput);
+        
+        // Total cell
+        let totalCell = $('<td>');
+        let totalInput = $('<input type="text" class="form-control total" readonly style="background: var(--card); border: 1px solid #374151; color: var(--muted);">');
+        totalCell.append(totalInput);
+        
+        // Action cell
+        let actionCell = $('<td class="text-center">');
+        let removeBtn = $('<button type="button" class="btn btn-danger btn-sm remove-row">')
+            .html('<i class="fas fa-trash"></i>');
+        actionCell.append(removeBtn);
+        
+        // Append all cells to row
+        row.append(productCell);
+        row.append(qtyCell);
+        row.append(priceCell);
+        row.append(totalCell);
+        row.append(actionCell);
+        
+        return row;
+    }
+
+    // ADD PRODUCT BUTTON HANDLER WITH PRICE MEMORY
+    $('#addProductBtn').click(function(){
+        console.log('Add Product button clicked');
+        let row = createProductRow();
+        $('#productsTable tbody').append(row);
+        
+        let productSelect = row.find('.product_select');
+        initializeProductSelect(productSelect);
+        
+        // Product selection handler
+        productSelect.on('select2:select', function(e) {
+            let data = e.params.data;
+            console.log('Product selected:', data);
+            if (data) {
+                let row = $(this).closest('tr');
+                
+                // Use saved price if available, otherwise use default cost price
+                let priceToUse = data.saved_price || data.cost_price;
+                row.find('.unit-price').val(parseFloat(priceToUse).toFixed(2));
+                
+                recalcRow(row);
+                
+                // Auto-focus quantity field
+                row.find('.quantity').focus().select();
+            }
+        });
+
+        // Product clearing handler
+        productSelect.on('select2:clear', function() {
+            let row = $(this).closest('tr');
+            row.find('.unit-price').val('');
+            row.find('.quantity').val('1');
+            row.find('.total').val('');
+            recalcGrandTotal();
+            recalcItemsData();
+        });
+
+        // Quantity and price change handlers
+        row.find('.quantity, .unit-price').on('input', function() {
+            let row = $(this).closest('tr');
+            recalcRow(row);
+            
+            // Save price when it changes
+            let productId = row.find('.product_select').val();
+            let price = parseFloat(row.find('.unit-price').val()) || 0;
+            if (productId && price > 0) {
+                saveProductPrice(productId, price);
+            }
+        });
+
+        // Remove row handler
+        row.find('.remove-row').click(function() {
+            if ($('#productsTable tbody tr').length > 1) {
+                $(this).closest('tr').remove();
+            } else {
+                // If it's the last row, just clear it
+                let row = $(this).closest('tr');
+                row.find('.product_select').val('').trigger('change');
+                row.find('.quantity').val('1');
+                row.find('.unit-price').val('');
+                row.find('.total').val('');
+            }
+            recalcGrandTotal();
+            recalcItemsData();
+        });
+
+        recalcRow(row);
+        
+        // Auto-focus the product search
+        setTimeout(function() {
+            productSelect.select2('open');
+        }, 100);
+    });
+
+    // Recalculate row total
+    function recalcRow(row) {
+        const quantity = parseFloat(row.find('.quantity').val()) || 0;
+        const unitPrice = parseFloat(row.find('.unit-price').val()) || 0;
+        const total = quantity * unitPrice;
+        
+        row.find('.total').val('$' + total.toFixed(2));
+        recalcGrandTotal();
+        recalcItemsData();
+    }
+
+    // Recalculate grand total
+    function recalcGrandTotal() {
+        let grandTotal = 0;
+        $('#productsTable tbody tr').each(function() {
+            const totalText = $(this).find('.total').val();
+            const total = parseFloat(totalText.replace('$', '')) || 0;
+            grandTotal += total;
+        });
+        $('#grandTotal').text(grandTotal.toFixed(2));
+    }
+
+    // Serialize products data to hidden field
+    function recalcItemsData() {
+        const items = [];
+        $('#productsTable tbody tr').each(function() {
+            const row = $(this);
+            const productId = row.find('.product_select').val();
+            
+            if (productId) {
+                const unitPrice = parseFloat(row.find('.unit-price').val()) || 0;
+                const totalText = row.find('.total').val();
+                const total = parseFloat(totalText.replace('$', '')) || 0;
+                
+                items.push({
+                    product_id: parseInt(productId),
+                    quantity: parseFloat(row.find('.quantity').val()) || 0,
+                    unit_price: unitPrice,
+                    total: total
+                });
+            }
+        });
+        $('#itemsData').val(JSON.stringify(items));
+        console.log('Updated items data:', items);
+    }
+
+    // Validate form before submission
+    $('#purchaseForm').submit(function(e) {
+        recalcItemsData();
+        const items = JSON.parse($('#itemsData').val() || '[]');
+        
+        // Validate at least one product
+        if (items.length === 0) {
+            alert('Please add at least one product to the purchase');
+            e.preventDefault();
+            return false;
+        }
+
+        // Validate all products have valid data
+        let hasErrors = false;
+        let errorMessage = '';
+        
+        $('#productsTable tbody tr').each(function(index) {
+            const row = $(this);
+            const productId = row.find('.product_select').val();
+            const quantity = row.find('.quantity').val();
+            const unitPrice = row.find('.unit-price').val();
+            
+            if (!productId) {
+                hasErrors = true;
+                row.css('background-color', '#450a0a');
+                errorMessage += `• Row ${index + 1}: Please select a product\n`;
+            } else if (!quantity || quantity <= 0) {
+                hasErrors = true;
+                row.css('background-color', '#450a0a');
+                errorMessage += `• Row ${index + 1}: Please enter a valid quantity\n`;
+            } else if (!unitPrice || unitPrice <= 0) {
+                hasErrors = true;
+                row.css('background-color', '#450a0a');
+                errorMessage += `• Row ${index + 1}: Please enter a valid unit price\n`;
+            } else {
+                row.css('background-color', '');
+            }
+        });
+
+        if (hasErrors) {
+            alert('Please fix the following errors:\n\n' + errorMessage);
+            e.preventDefault();
+            return false;
+        }
+
+        // Validate required fields
+        const supplierName = $('[name="supplier_name"]').val();
+        const location = $('[name="location"]').val();
+        
+        if (!supplierName.trim()) {
+            alert('Please enter a supplier name');
+            $('[name="supplier_name"]').focus();
+            e.preventDefault();
+            return false;
+        }
+        
+        if (!location) {
+            alert('Please select a location');
+            $('[name="location"]').focus();
+            e.preventDefault();
+            return false;
+        }
+
+        // Confirm large purchases
+        const grandTotal = parseFloat($('#grandTotal').text());
+        if (grandTotal > 10000) {
+            if (!confirm(`This purchase totals $${grandTotal.toFixed(2)}. Confirm purchase?`)) {
+                e.preventDefault();
+                return false;
+            }
+        }
+
+        return true;
+    });
+
+    // Reset form
+    $('#resetButton').click(function() {
+        if (confirm('Are you sure you want to reset the form? All entered data will be lost.')) {
+            $('#productsTable tbody').empty();
+            $('[name="supplier_name"]').val('');
+            $('[name="location"]').val('');
+            $('[name="purchase_date"]').val('{{ default_date }}');
+            $('[name="notes"]').val('');
+            $('#addProductBtn').click(); // Add one empty row
+        }
+    });
+
+    // Auto-add first product row when page loads
+    setTimeout(function() {
+        if ($('#productsTable tbody tr').length === 0) {
+            console.log('Auto-adding first product row');
+            $('#addProductBtn').click();
+        }
+    }, 500);
+});
+</script>
+
+<style>
+:root {
+    --bg: #071029;
+    --card: #0e1622;
+    --muted: #9fb0c8;
+    --accent: #4f46e5;
+    --accent2: #06b6d4;
+    --positive: #10b981;
+    --negative: #ef4444;
+}
+
+body {
+    background: var(--bg);
+    color: var(--muted);
+    font-family: Inter, system-ui, Roboto;
+}
+
+.card {
+    background: var(--card);
+    color: var(--muted);
+    border-radius: 8px;
+    border: 1px solid #1e293b;
+}
+
+.form-label {
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.table {
+    color: var(--muted);
+    border-color: #374151;
+}
+
+.table-bordered th,
+.table-bordered td {
+    border-color: #374151;
+}
+
+.table-light {
+    background: #1e293b;
+    color: var(--muted);
+}
+
+.btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.btn-success {
+    background: var(--positive);
+    border-color: var(--positive);
+}
+
+.btn-danger {
+    background: var(--negative);
+    border-color: var(--negative);
+}
+
+.select2-container--default .select2-selection--single {
+    background: var(--card);
+    border: 1px solid #374151;
+    color: var(--muted);
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    color: var(--muted);
+}
+
+.select2-container--default .select2-results__option {
+    background: var(--card);
+    color: var(--muted);
+}
+
+.select2-container--default .select2-results__option--highlighted[aria-selected] {
+    background: var(--accent);
+    color: white;
+}
+
+.select2-container--default .select2-dropdown {
+    background: var(--card);
+    border: 1px solid #374151;
+}
+
+.text-white { color: white !important; }
+.text-success { color: var(--positive) !important; }
+
+.alert {
+    background: var(--card);
+    border: 1px solid #374151;
+    color: var(--muted);
+}
+
+.alert-success {
+    border-color: var(--positive);
+}
+
+.alert-danger {
+    border-color: var(--negative);
+}
+
+.table-hover tbody tr:hover {
+    background-color: #1e293b;
+    color: var(--muted);
+}
+</style>
+{% endblock %}

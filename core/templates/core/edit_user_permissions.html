@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Permissions - Teba Inventory{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-user-edit me-2"></i>Edit Permissions for {{ edit_user.username }}
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="border-bottom pb-2 mb-3">Basic Information</h6>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Username</label>
+                                <input type="text" class="form-control" value="{{ edit_user.username }}" readonly>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Full Name</label>
+                                <input type="text" class="form-control" 
+                                       value="{{ edit_user.get_full_name|default:'-' }}" readonly>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="role" class="form-label">Role *</label>
+                                <select class="form-control" id="role" name="role" required>
+                                    <option value="admin" {% if profile.role == 'admin' %}selected{% endif %}>Administrator</option>
+                                    <option value="manager" {% if profile.role == 'manager' %}selected{% endif %}>Manager</option>
+                                    <option value="staff" {% if profile.role == 'staff' %}selected{% endif %}>Staff</option>
+                                    <option value="cashier" {% if profile.role == 'cashier' %}selected{% endif %}>Cashier</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="assigned_location" class="form-label">Assigned Location</label>
+                                <select class="form-control" id="assigned_location" name="assigned_location">
+                                    <option value="">All Locations</option>
+                                    {% for location in locations %}
+                                    <option value="{{ location.id }}" 
+                                            {% if profile.assigned_location.id == location.id %}selected{% endif %}>
+                                        {{ location.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">Leave empty to allow access to all locations</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6 class="border-bottom pb-2 mb-3">Permissions</h6>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="can_manage_inventory" 
+                                       name="can_manage_inventory" {% if profile.can_manage_inventory %}checked{% endif %}>
+                                <label class="form-check-label" for="can_manage_inventory">
+                                    <strong>Manage Inventory</strong>
+                                </label>
+                                <div class="form-text">Add, edit, delete products and categories</div>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="can_manage_sales" 
+                                       name="can_manage_sales" {% if profile.can_manage_sales %}checked{% endif %}>
+                                <label class="form-check-label" for="can_manage_sales">
+                                    <strong>Manage Sales</strong>
+                                </label>
+                                <div class="form-text">Create and manage sales, process payments</div>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="can_manage_purchases" 
+                                       name="can_manage_purchases" {% if profile.can_manage_purchases %}checked{% endif %}>
+                                <label class="form-check-label" for="can_manage_purchases">
+                                    <strong>Manage Purchases</strong>
+                                </label>
+                                <div class="form-text">Create and manage purchase orders and stock entries</div>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="can_manage_customers" 
+                                       name="can_manage_customers" {% if profile.can_manage_customers %}checked{% endif %}>
+                                <label class="form-check-label" for="can_manage_customers">
+                                    <strong>Manage Customers</strong>
+                                </label>
+                                <div class="form-text">Add, edit, and manage customer information</div>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="can_view_reports" 
+                                       name="can_view_reports" {% if profile.can_view_reports %}checked{% endif %}>
+                                <label class="form-check-label" for="can_view_reports">
+                                    <strong>View Reports</strong>
+                                </label>
+                                <div class="form-text">Access sales, inventory, and financial reports</div>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="can_manage_users" 
+                                       name="can_manage_users" {% if profile.can_manage_users %}checked{% endif %}>
+                                <label class="form-check-label" for="can_manage_users">
+                                    <strong>Manage Users</strong>
+                                </label>
+                                <div class="form-text">Add, edit, and manage user accounts and permissions</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Update Permissions
+                        </button>
+                        <a href="{% url 'core:user_permissions' %}" class="btn btn-secondary">
+                            <i class="fas fa-times me-1"></i>Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

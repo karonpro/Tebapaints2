@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+
+{% block title %}Company Details - Teba Inventory{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-building me-2"></i>Company Details
+                </h5>
+                <small class="text-muted">These details will appear on your invoices, quotations, and receipts</small>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="border-bottom pb-2 mb-3">Basic Information</h6>
+                            
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Company Name *</label>
+                                <input type="text" class="form-control" id="name" name="name" 
+                                       value="{{ company.name }}" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="address" class="form-label">Address</label>
+                                <textarea class="form-control" id="address" name="address" 
+                                          rows="3">{{ company.address }}</textarea>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="phone" class="form-label">Phone</label>
+                                        <input type="text" class="form-control" id="phone" name="phone" 
+                                               value="{{ company.phone }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="email" class="form-label">Email</label>
+                                        <input type="email" class="form-control" id="email" name="email" 
+                                               value="{{ company.email }}">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="website" class="form-label">Website</label>
+                                <input type="url" class="form-control" id="website" name="website" 
+                                       value="{{ company.website }}" placeholder="https://...">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="logo" class="form-label">Company Logo</label>
+                                <input type="file" class="form-control" id="logo" name="logo" 
+                                       accept="image/*">
+                                {% if company.logo %}
+                                <div class="mt-2">
+                                    <small class="text-muted">Current logo:</small><br>
+                                    <img src="{{ company.logo.url }}" alt="Company Logo" style="max-height: 80px;" class="mt-1">
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6 class="border-bottom pb-2 mb-3">Business & Banking</h6>
+                            
+                            <div class="mb-3">
+                                <label for="tax_id" class="form-label">Tax ID / VAT Number</label>
+                                <input type="text" class="form-control" id="tax_id" name="tax_id" 
+                                       value="{{ company.tax_id }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="bank_name" class="form-label">Bank Name</label>
+                                <input type="text" class="form-control" id="bank_name" name="bank_name" 
+                                       value="{{ company.bank_name }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="bank_account" class="form-label">Bank Account Number</label>
+                                <input type="text" class="form-control" id="bank_account" name="bank_account" 
+                                       value="{{ company.bank_account }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="bank_branch" class="form-label">Bank Branch</label>
+                                <input type="text" class="form-control" id="bank_branch" name="bank_branch" 
+                                       value="{{ company.bank_branch }}">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <h6 class="border-bottom pb-2 mb-3">Document Settings</h6>
+                            
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="invoice_prefix" class="form-label">Invoice Prefix</label>
+                                        <input type="text" class="form-control" id="invoice_prefix" name="invoice_prefix" 
+                                               value="{{ company.invoice_prefix }}" maxlength="10">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="quotation_prefix" class="form-label">Quotation Prefix</label>
+                                        <input type="text" class="form-control" id="quotation_prefix" name="quotation_prefix" 
+                                               value="{{ company.quotation_prefix }}" maxlength="10">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="receipt_prefix" class="form-label">Receipt Prefix</label>
+                                        <input type="text" class="form-control" id="receipt_prefix" name="receipt_prefix" 
+                                               value="{{ company.receipt_prefix }}" maxlength="10">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="invoice_footer" class="form-label">Invoice Footer Text</label>
+                                <textarea class="form-control" id="invoice_footer" name="invoice_footer" 
+                                          rows="2" placeholder="Thank you for your business!">{{ company.invoice_footer }}</textarea>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="quotation_footer" class="form-label">Quotation Footer Text</label>
+                                <textarea class="form-control" id="quotation_footer" name="quotation_footer" 
+                                          rows="2" placeholder="Valid for 30 days">{{ company.quotation_footer }}</textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6 class="border-bottom pb-2 mb-3">Preview</h6>
+                            <div class="border p-3 bg-light">
+                                <div class="text-center mb-3">
+                                    {% if company.logo %}
+                                    <img src="{{ company.logo.url }}" alt="Logo" style="max-height: 60px;">
+                                    {% else %}
+                                    <strong>{{ company.name }}</strong>
+                                    {% endif %}
+                                </div>
+                                <small>
+                                    <strong>{{ company.name }}</strong><br>
+                                    {% if company.address %}{{ company.address }}<br>{% endif %}
+                                    {% if company.phone %}Phone: {{ company.phone }}{% endif %}
+                                    {% if company.email %} | Email: {{ company.email }}{% endif %}
+                                    {% if company.website %}<br>Website: {{ company.website }}{% endif %}
+                                    {% if company.tax_id %}<br>Tax ID: {{ company.tax_id }}{% endif %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Save Company Details
+                        </button>
+                        <a href="{% url 'inventory:dashboard' %}" class="btn btn-secondary">
+                            <i class="fas fa-times me-1"></i>Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Account Locked - Teba Inventory{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-4">
+            <div class="card shadow-lg border-0 rounded-lg mt-5">
+                <div class="card-header bg-danger text-white text-center">
+                    <h3 class="my-3">
+                        <i class="fas fa-lock me-2"></i>
+                        Account Temporarily Locked
+                    </h3>
+                </div>
+                <div class="card-body p-4 text-center">
+                    <div class="alert alert-warning">
+                        <h5 class="alert-heading">Too Many Failed Attempts</h5>
+                        <p class="mb-0">
+                            Your account has been temporarily locked due to multiple failed login attempts. 
+                            Please try again in 1 hour or contact your system administrator.
+                        </p>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <a href="{% url 'account_login' %}" class="btn btn-primary">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Login
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,575 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-white">New Stock Transfer</h2>
+        <a href="{% url 'inventory:transfer_list' %}" class="btn btn-outline-secondary">← Back to Transfers</a>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card">
+        <div class="card-body">
+            <form method="POST" id="transferForm">
+                {% csrf_token %}
+
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label">From Location *</label>
+                        <select id="from_location" name="from_location" class="form-select" required style="background: var(--card); border: 1px solid #374151; color: var(--muted);">
+                            <option value="">Select Source Location</option>
+                            {% for loc in locations %}
+                                <option value="{{ loc.id }}">{{ loc.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text text-muted">Location where stock is currently stored</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">To Location *</label>
+                        <select id="to_location" name="to_location" class="form-select" required style="background: var(--card); border: 1px solid #374151; color: var(--muted);">
+                            <option value="">Select Destination Location</option>
+                            {% for loc in locations %}
+                                <option value="{{ loc.id }}">{{ loc.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text text-muted">Location where stock will be transferred</div>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label">Transfer Date</label>
+                        <input type="datetime-local" name="transfer_date" class="form-control" value="{{ default_date }}" style="background: var(--card); border: 1px solid #374151; color: var(--muted);">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Notes</label>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Any notes about this transfer..." style="background: var(--card); border: 1px solid #374151; color: var(--muted);"></textarea>
+                    </div>
+                </div>
+
+                <!-- Products Section -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="text-white">Products to Transfer</h5>
+                        <button type="button" class="btn btn-primary" id="addProductBtn">
+                            <i class="fas fa-plus me-1"></i>Add Product
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover" id="productsTable">
+                            <thead class="table-light" style="background: #1e293b; color: var(--muted);">
+                                <tr>
+                                    <th width="45%">Product</th>
+                                    <th width="15%">Available Stock</th>
+                                    <th width="20%">Transfer Quantity</th>
+                                    <th width="10%">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Products will be added here dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Hidden field for items -->
+                <input type="hidden" id="items_data" name="items_data" value="[]">
+
+                <div class="d-flex gap-2 border-top pt-3">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-exchange-alt me-1"></i>Save Transfer
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="resetButton">
+                        <i class="fas fa-undo me-1"></i>Reset Form
+                    </button>
+                    <a href="{% url 'inventory:transfer_list' %}" class="btn btn-outline-danger">
+                        <i class="fas fa-times me-1"></i>Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Help Section -->
+    <div class="card mt-4">
+        <div class="card-header" style="background: #1e293b; border-bottom: 1px solid #374151;">
+            <h6 class="mb-0 text-white"><i class="fas fa-info-circle me-1"></i> Transfer Guidelines</h6>
+        </div>
+        <div class="card-body">
+            <ul class="mb-0 text-muted">
+                <li>Select source and destination locations for the transfer</li>
+                <li>Available stock is shown for the selected source location</li>
+                <li>Transfer quantity cannot exceed available stock</li>
+                <li>Stock will be automatically updated when transfer is confirmed</li>
+                <li>Use the search to quickly find products by name or SKU</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript Libraries -->
+<script src="{% static 'admin/jquery/jquery-3.7.1.min.js' %}"></script>
+<script src="{% static 'admin/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'admin/select2/js/select2.full.min.js' %}"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+<link rel="stylesheet" href="{% static 'admin/select2/css/select2.min.css' %}">
+
+<script>
+$(document).ready(function() {
+    console.log('Document ready - initializing transfer form');
+    
+    let rowCounter = 0;
+    let allLocations = [];
+
+    // Load locations
+    function loadLocations() {
+        $('#from_location option, #to_location option').each(function() {
+            if ($(this).val()) {
+                allLocations.push({
+                    id: $(this).val(),
+                    name: $(this).text()
+                });
+            }
+        });
+    }
+
+    loadLocations();
+
+    // CHECK STOCK AVAILABILITY FOR SPECIFIC LOCATION
+    function checkStockAvailability(productId, locationId, callback) {
+        if (productId && locationId) {
+            $.getJSON(`/inventory/api/stock/${productId}/${locationId}/`, function(data) {
+                if (data.quantity !== undefined) {
+                    callback(data.quantity);
+                } else {
+                    callback(0);
+                }
+            }).fail(function() {
+                callback(0);
+            });
+        } else {
+            callback(0);
+        }
+    }
+
+    // UPDATE STOCK DISPLAY FOR TRANSFER
+    function updateStockDisplay(row) {
+        let productId = row.find('.product_select').val();
+        let fromLocationId = $('#from_location').val();
+        let quantity = parseFloat(row.find('.qty').val()) || 0;
+        let stockDisplay = row.find('.stock-display');
+        
+        if (productId && fromLocationId) {
+            checkStockAvailability(productId, fromLocationId, function(availableStock) {
+                let displayHtml = '';
+                
+                if (availableStock === 0) {
+                    displayHtml = '<div class="stock-warning">';
+                    displayHtml += '<i class="fas fa-exclamation-triangle"></i> 0';
+                    displayHtml += '</div>';
+                    row.addClass('low-stock');
+                    row.find('.qty').prop('max', 0);
+                    
+                } else if (availableStock < quantity) {
+                    displayHtml = '<div class="stock-warning">';
+                    displayHtml += `<i class="fas fa-exclamation-triangle"></i> ${availableStock}`;
+                    displayHtml += '</div>';
+                    row.addClass('low-stock');
+                    row.find('.qty').prop('max', availableStock);
+                    
+                } else {
+                    displayHtml = '<div class="stock-ok">';
+                    displayHtml += `<i class="fas fa-check-circle"></i> ${availableStock}`;
+                    displayHtml += '</div>';
+                    row.removeClass('low-stock');
+                    row.find('.qty').prop('max', availableStock);
+                }
+                
+                stockDisplay.html(displayHtml);
+            });
+        } else {
+            stockDisplay.html('<div class="stock-info">-</div>');
+            row.removeClass('low-stock');
+            row.find('.qty').prop('max', '');
+        }
+    }
+
+    // FUNCTION TO INITIALIZE SELECT2 WITH AJAX SEARCH
+    function initializeProductSelect(selectElement) {
+        selectElement.select2({
+            placeholder: "Search for a product by name or SKU...",
+            allowClear: true,
+            minimumInputLength: 2,
+            ajax: {
+                url: "{% url 'inventory:product_search_api' %}",
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        q: params.term,
+                        page: params.page
+                    };
+                },
+                processResults: function (data, params) {
+                    params.page = params.page || 1;
+                    return {
+                        results: data.products.map(function(product) {
+                            return {
+                                id: product.id,
+                                text: product.name + ' (' + product.sku + ')',
+                                selling_price: product.selling_price
+                            };
+                        }),
+                        pagination: {
+                            more: false
+                        }
+                    };
+                },
+                cache: true
+            },
+            templateResult: function(product) {
+                if (product.loading) {
+                    return product.text;
+                }
+                
+                var $container = $(
+                    '<div class="product-option">' +
+                        '<div class="product-name"><strong>' + product.text + '</strong></div>' +
+                    '</div>'
+                );
+                
+                return $container;
+            },
+            templateSelection: function(product) {
+                return product.text || product.name || "Select a product...";
+            }
+        });
+    }
+
+    function createProductRow() {
+        rowCounter++;
+        let row = $('<tr class="product-row">').attr('data-row-id', rowCounter);
+        
+        // Product select cell with Select2
+        let productCell = $('<td>');
+        let productSelect = $('<select class="form-select product_select" data-row="' + rowCounter + '" style="background: var(--card); border: 1px solid #374151; color: var(--muted);">')
+            .append('<option value=""></option>');
+        productCell.append(productSelect);
+        
+        // Stock Available cell
+        let stockCell = $('<td class="stock-display">');
+        stockCell.html('<div class="stock-info">-</div>');
+        
+        // Quantity cell
+        let qtyCell = $('<td>');
+        let qtyInput = $('<input type="number" class="form-control qty" step="1" value="1" min="1" style="background: var(--card); border: 1px solid #374151; color: var(--muted);">');
+        qtyCell.append(qtyInput);
+        
+        // Action cell
+        let actionCell = $('<td>');
+        let removeBtn = $('<button type="button" class="btn btn-danger btn-sm removeRow">')
+            .html('<i class="fas fa-trash"></i>');
+        actionCell.append(removeBtn);
+        
+        // Append all cells to row
+        row.append(productCell);
+        row.append(stockCell);
+        row.append(qtyCell);
+        row.append(actionCell);
+        
+        return row;
+    }
+
+    // ADD PRODUCT BUTTON HANDLER
+    $('#addProductBtn').click(function(){
+        console.log('Add Product button clicked');
+        let row = createProductRow();
+        $('#productsTable tbody').append(row);
+        
+        let productSelect = row.find('.product_select');
+        initializeProductSelect(productSelect);
+        
+        // Product selection handler
+        productSelect.on('select2:select', function(e) {
+            let data = e.params.data;
+            console.log('Product selected:', data);
+            if (data) {
+                let row = $(this).closest('tr');
+                
+                // Update stock display for selected product and source location
+                updateStockDisplay(row);
+                
+                // Auto-focus quantity field
+                row.find('.qty').focus().select();
+            }
+        });
+
+        // Product clearing handler
+        productSelect.on('select2:clear', function() {
+            let row = $(this).closest('tr');
+            row.find('.qty').val('1');
+            row.find('.stock-display').html('<div class="stock-info">-</div>');
+            row.removeClass('low-stock');
+            recalcItemsData();
+        });
+
+        // Quantity change handler
+        row.find('.qty').on('input', function() {
+            let row = $(this).closest('tr');
+            updateStockDisplay(row);
+            recalcItemsData();
+        });
+
+        // Remove row handler
+        row.find('.removeRow').click(function() {
+            $(this).closest('tr').remove();
+            recalcItemsData();
+        });
+
+        recalcItemsData();
+        
+        // Auto-focus the product search
+        setTimeout(function() {
+            productSelect.select2('open');
+        }, 100);
+    });
+
+    // Update stock display when source location changes
+    $('#from_location').change(function() {
+        $('#productsTable tbody tr').each(function() {
+            updateStockDisplay($(this));
+        });
+    });
+
+    function recalcItemsData() {
+        let items = [];
+        $('#productsTable tbody tr').each(function() {
+            let row = $(this);
+            let product_id = row.find('.product_select').val();
+            let quantity = parseInt(row.find('.qty').val()) || 0;
+            if(product_id && quantity > 0) {
+                items.push({ 
+                    product_id: parseInt(product_id), 
+                    quantity: quantity 
+                });
+            }
+        });
+        $('#items_data').val(JSON.stringify(items));
+        console.log('Transfer items data:', items);
+    }
+
+    // Form validation
+    $('#transferForm').submit(function(e){
+        recalcItemsData();
+        let items = JSON.parse($('#items_data').val() || '[]');
+        
+        // Check if any products are added
+        if (items.length === 0) {
+            alert('Please add at least one product to transfer.');
+            e.preventDefault();
+            return false;
+        }
+
+        // Check source and destination locations
+        let fromLocation = $('#from_location').val();
+        let toLocation = $('#to_location').val();
+        
+        if (!fromLocation || !toLocation) {
+            alert('Please select both source and destination locations.');
+            e.preventDefault();
+            return false;
+        }
+
+        if (fromLocation === toLocation) {
+            alert('Source and destination locations cannot be the same.');
+            e.preventDefault();
+            return false;
+        }
+
+        // Check for stock issues
+        let hasStockIssues = false;
+        let stockIssueMessages = [];
+        
+        $('#productsTable tbody tr').each(function() {
+            if ($(this).hasClass('low-stock')) {
+                hasStockIssues = true;
+                let productName = $(this).find('.product_select').find('option:selected').text().split(' - ')[0];
+                let requestedQty = $(this).find('.qty').val();
+                let maxQty = $(this).find('.qty').prop('max');
+                stockIssueMessages.push(`${productName}: Requested ${requestedQty}, Available ${maxQty}`);
+            }
+        });
+        
+        if (hasStockIssues) {
+            let message = 'Some products have insufficient stock:\n\n' + 
+                         stockIssueMessages.join('\n') + 
+                         '\n\nDo you want to continue anyway?';
+            if (!confirm(message)) {
+                e.preventDefault();
+                return false;
+            }
+        }
+
+        return true;
+    });
+
+    // Reset form
+    $('#resetButton').click(function() {
+        if (confirm('Are you sure you want to reset the form? All entered data will be lost.')) {
+            $('#productsTable tbody').empty();
+            $('#from_location').val('');
+            $('#to_location').val('');
+            $('[name="transfer_date"]').val('{{ default_date }}');
+            $('[name="notes"]').val('');
+            $('#addProductBtn').click(); // Add one empty row
+        }
+    });
+
+    // Auto-add first product row when page loads
+    setTimeout(function() {
+        if ($('#productsTable tbody tr').length === 0) {
+            console.log('Auto-adding first product row');
+            $('#addProductBtn').click();
+        }
+    }, 500);
+});
+</script>
+
+<style>
+:root {
+    --bg: #071029;
+    --card: #0e1622;
+    --muted: #9fb0c8;
+    --accent: #4f46e5;
+    --accent2: #06b6d4;
+    --positive: #10b981;
+    --negative: #ef4444;
+}
+
+body {
+    background: var(--bg);
+    color: var(--muted);
+    font-family: Inter, system-ui, Roboto;
+}
+
+.card {
+    background: var(--card);
+    color: var(--muted);
+    border-radius: 8px;
+    border: 1px solid #1e293b;
+}
+
+.form-label {
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.table {
+    color: var(--muted);
+    border-color: #374151;
+}
+
+.table-bordered th,
+.table-bordered td {
+    border-color: #374151;
+}
+
+.table-light {
+    background: #1e293b;
+    color: var(--muted);
+}
+
+.btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.btn-success {
+    background: var(--positive);
+    border-color: var(--positive);
+}
+
+.btn-danger {
+    background: var(--negative);
+    border-color: var(--negative);
+}
+
+.select2-container--default .select2-selection--single {
+    background: var(--card);
+    border: 1px solid #374151;
+    color: var(--muted);
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    color: var(--muted);
+}
+
+.select2-container--default .select2-results__option {
+    background: var(--card);
+    color: var(--muted);
+}
+
+.select2-container--default .select2-results__option--highlighted[aria-selected] {
+    background: var(--accent);
+    color: white;
+}
+
+.select2-container--default .select2-dropdown {
+    background: var(--card);
+    border: 1px solid #374151;
+}
+
+.stock-warning { 
+    color: var(--negative); 
+    font-size: 0.875em; 
+    font-weight: 500;
+}
+
+.stock-ok { 
+    color: var(--positive); 
+    font-size: 0.875em;
+    font-weight: 500;
+}
+
+.stock-info { 
+    color: var(--accent2); 
+    font-size: 0.875em;
+    font-weight: 500;
+}
+
+.low-stock { 
+    background-color: #450a0a !important; 
+}
+
+.text-white { color: white !important; }
+
+.alert {
+    background: var(--card);
+    border: 1px solid #374151;
+    color: var(--muted);
+}
+
+.alert-success {
+    border-color: var(--positive);
+}
+
+.alert-danger {
+    border-color: var(--negative);
+}
+
+.table-hover tbody tr:hover {
+    background-color: #1e293b;
+    color: var(--muted);
+}
+</style>
+{% endblock %}

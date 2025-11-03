@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block title %}User Permissions - Teba Inventory{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-user-shield me-2"></i>User Permissions Management
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if users %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Name</th>
+                                <th>Role</th>
+                                <th>Location</th>
+                                <th>Permissions</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td>
+                                    <strong>{{ user.username }}</strong>
+                                    {% if user == request.user %}
+                                    <span class="badge bg-info ms-1">You</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.get_full_name|default:"-" }}</td>
+                                <td>
+                                    <span class="badge 
+                                        {% if user.profile.role == 'admin' %}bg-danger
+                                        {% elif user.profile.role == 'manager' %}bg-warning
+                                        {% elif user.profile.role == 'cashier' %}bg-success
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ user.profile.get_role_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if user.profile.assigned_location %}
+                                        {{ user.profile.assigned_location.name }}
+                                    {% else %}
+                                        <span class="text-muted">All Locations</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>
+                                        {% if user.profile.can_manage_inventory %}<span class="badge bg-primary me-1">Inventory</span>{% endif %}
+                                        {% if user.profile.can_manage_sales %}<span class="badge bg-success me-1">Sales</span>{% endif %}
+                                        {% if user.profile.can_manage_purchases %}<span class="badge bg-info me-1">Purchases</span>{% endif %}
+                                        {% if user.profile.can_manage_customers %}<span class="badge bg-warning me-1">Customers</span>{% endif %}
+                                        {% if user.profile.can_view_reports %}<span class="badge bg-dark me-1">Reports</span>{% endif %}
+                                        {% if user.profile.can_manage_users %}<span class="badge bg-danger me-1">Users</span>{% endif %}
+                                    </small>
+                                </td>
+                                <td>
+                                    {% if user != request.user or request.user.profile.role == 'admin' %}
+                                    <a href="{% url 'core:edit_user_permissions' user.id %}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </a>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No Users Found</h5>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

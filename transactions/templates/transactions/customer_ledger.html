@@ -1,0 +1,44 @@
+<!-- transactions/templates/transactions/customer_ledger.html -->
+<h2>Ledger for {{ customer.name }}</h2>
+<p>Total Balance Due: <strong>{{ total_balance|floatformat:2 }}</strong></p>
+
+<table border="1">
+    <thead>
+        <tr>
+            <th>Document #</th>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Total Amount</th>
+            <th>Paid Amount</th>
+            <th>Balance</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for sale in sales %}
+        <tr>
+            <td>{{ sale.document_number }}</td>
+            <td>{{ sale.date|date:"Y-m-d" }}</td>
+            <td>{{ sale.document_type }}</td>
+            <td>{{ sale.total_amount|floatformat:2 }}</td>
+            <td>{{ sale.paid_amount|floatformat:2 }}</td>
+            <td>{{ sale.balance_due|floatformat:2 }}</td>
+            <td>
+                {% if sale.is_overdue %}
+                    <span style="color:red;">Overdue</span>
+                {% else %}
+                    {{ sale.document_status|capfirst }}
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7">No sales found for this customer.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<a href="{% url 'customer_list' %}">Back to Customer List</a>
+
+

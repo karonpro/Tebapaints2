@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-6 col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-warning text-dark py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="card-title mb-0">
+                            <i class="fas fa-cart-plus me-2"></i>Record Supply Debt
+                        </h4>
+                        <a href="{% url 'transactions:customer_detail' customer.id %}" class="btn btn-sm btn-outline-dark">
+                            <i class="fas fa-arrow-left me-1"></i> Back
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <h5 class="text-warning">Customer: {{ customer.name }}</h5>
+                        <p class="text-muted">Current Debt: <strong>UGX {{ customer.balance|floatformat:0 }}</strong></p>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if form.errors %}
+                        <div class="alert alert-danger">
+                            <strong>Please correct the errors below:</strong>
+                            {{ form.errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.amount.id_for_label }}" class="form-label">
+                                <strong>Supply Amount *</strong>
+                            </label>
+                            {{ form.amount }}
+                            <div class="form-text">Enter the total value of goods supplied</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                <strong>Description</strong>
+                            </label>
+                            {{ form.notes }}
+                            <div class="form-text">Describe the goods supplied (optional)</div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="{{ form.reference.id_for_label }}" class="form-label">
+                                <strong>Reference Number</strong>
+                            </label>
+                            {{ form.reference }}
+                            <div class="form-text">Invoice or reference number (optional)</div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-warning btn-lg">
+                                <i class="fas fa-save me-2"></i>Record Supply Debt
+                            </button>
+                            <a href="{% url 'transactions:customer_detail' customer.id %}" class="btn btn-outline-secondary">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Quick Info -->
+            <div class="card mt-4 border-info">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>About Supply Debt</h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2"><strong>What happens when you record supply debt:</strong></p>
+                    <ul class="mb-0">
+                        <li>Customer's debt balance will <strong>increase</strong> by the amount entered</li>
+                        <li>This represents goods you've supplied that the customer hasn't paid for yet</li>
+                        <li>Customer will owe you more money</li>
+                        <li>Use "Receive Payment" to reduce the debt when customer pays</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

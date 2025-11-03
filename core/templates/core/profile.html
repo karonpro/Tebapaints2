@@ -1,0 +1,83 @@
+<!-- templates/core/profile.html -->
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Profile Information</h4>
+                </div>
+                <div class="card-body">
+                    <!-- Email Verification Status -->
+                    <div class="alert {% if profile.email_verified %}alert-success{% else %}alert-warning{% endif %}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>Email Status:</strong> 
+                                {{ request.user.email }}
+                                {% if profile.email_verified %}
+                                    <span class="badge bg-success">Verified</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Not Verified</span>
+                                {% endif %}
+                            </div>
+                            {% if not profile.email_verified %}
+                            <div>
+                                <a href="{% url 'core:verify_email' %}" class="btn btn-sm btn-primary">
+                                    Enter Verification Code
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if not profile.email_verified %}
+                    <div class="alert alert-info">
+                        <strong>Note:</strong> A verification code has been sent to your email. 
+                        Please check your inbox and enter the code to verify your email address.
+                    </div>
+                    {% endif %}
+
+                    <!-- Profile Information -->
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <p><strong>Username:</strong> {{ request.user.username }}</p>
+                            <p><strong>First Name:</strong> {{ request.user.first_name|default:"Not set" }}</p>
+                            <p><strong>Last Name:</strong> {{ request.user.last_name|default:"Not set" }}</p>
+                            <p><strong>Role:</strong> {{ profile.get_role_display }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Phone:</strong> {{ profile.phone|default:"Not set" }}</p>
+                            <p><strong>Location:</strong> {{ profile.assigned_location|default:"Not assigned" }}</p>
+                            <p><strong>Joined:</strong> {{ request.user.date_joined|date:"M d, Y" }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Permissions -->
+                    <div class="mt-4">
+                        <h5>Permissions</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <ul class="list-unstyled">
+                                    <li>{% if profile.can_manage_inventory %}✅{% else %}❌{% endif %} Manage Inventory</li>
+                                    <li>{% if profile.can_manage_sales %}✅{% else %}❌{% endif %} Manage Sales</li>
+                                    <li>{% if profile.can_manage_purchases %}✅{% else %}❌{% endif %} Manage Purchases</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <ul class="list-unstyled">
+                                    <li>{% if profile.can_manage_customers %}✅{% else %}❌{% endif %} Manage Customers</li>
+                                    <li>{% if profile.can_view_reports %}✅{% else %}❌{% endif %} View Reports</li>
+                                    <li>{% if profile.can_manage_users %}✅{% else %}❌{% endif %} Manage Users</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

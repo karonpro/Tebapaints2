@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #007bff; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background: #f9f9f9; }
+        .code { font-size: 24px; font-weight: bold; text-align: center; color: #007bff; margin: 20px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{ site_name }}</h1>
+        </div>
+        <div class="content">
+            {% if purpose == 'login' %}
+                <h2>Login Verification Code</h2>
+                <p>Hello {{ user.get_full_name|default:user.username }},</p>
+                <p>Your login verification code is:</p>
+                <div class="code">{{ verification_code }}</div>
+                <p>Enter this code on the verification page to complete your login.</p>
+                <p><strong>This code will expire in 15 minutes.</strong></p>
+                <p>If you didn't request this login, please ignore this email.</p>
+            {% else %}
+                <h2>Verify Your Email Address</h2>
+                <p>Hello {{ user.get_full_name|default:user.email }},</p>
+                <p>Please use the following verification code to confirm your email address:</p>
+                <div class="code">{{ verification_code }}</div>
+                <p>Enter this code on the verification page to complete your registration.</p>
+                <p><strong>This code will expire in 15 minutes.</strong></p>
+            {% endif %}
+        </div>
+        <div class="footer">
+            <p>Best regards,<br>The {{ site_name }} Team</p>
+        </div>
+    </div>
+</body>
+</html>

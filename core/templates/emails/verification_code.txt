@@ -1,0 +1,24 @@
+{% if purpose == 'login' %}Login Verification Code{% else %}Verify Your Email Address{% endif %}
+
+Hello {{ user.get_full_name|default:user.email }},
+
+{% if purpose == 'login' %}
+Your login verification code is: {{ verification_code }}
+
+Enter this code on the verification page to complete your login.
+
+This code will expire in 15 minutes.
+
+If you didn't request this login, please ignore this email.
+{% else %}
+Please use the following verification code to confirm your email address for {{ site_name }}:
+
+Verification Code: {{ verification_code }}
+
+Enter this code on the verification page to complete your registration.
+
+This code will expire in 15 minutes.
+{% endif %}
+
+Best regards,
+The {{ site_name }} Team

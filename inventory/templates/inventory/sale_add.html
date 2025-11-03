@@ -1,0 +1,494 @@
+<script>
+$(document).ready(function() {
+    console.log('Document ready - initializing sale form');
+    
+    // Initialize select2 for existing form fields
+    $('.select2').select2({
+        placeholder: "Select an option",
+        allowClear: true
+    });
+
+    let rowCounter = 0;
+    let allLocations = [];
+    
+    // Store product prices in localStorage
+    let productPrices = JSON.parse(localStorage.getItem('productPrices') || '{}');
+
+    // Load locations for transfer suggestions
+    function loadLocations() {
+        $('#id_location option').each(function() {
+            if ($(this).val()) {
+                allLocations.push({
+                    id: $(this).val(),
+                    name: $(this).text()
+                });
+            }
+        });
+    }
+
+    loadLocations();
+
+    function updatePaymentStatus() {
+        let paidAmount = parseFloat($('#id_paid_amount').val()) || 0;
+        let grandTotal = parseFloat($('#grandTotal').text()) || 0;
+        let paymentStatus = $('#paymentStatus');
+        
+        if (grandTotal === 0) {
+            paymentStatus.val('Add Products First')
+                .removeClass('bg-success bg-warning bg-danger')
+                .addClass('bg-secondary text-white');
+            return;
+        }
+        
+        if (paidAmount >= grandTotal && grandTotal > 0) {
+            paymentStatus.val('Fully Paid')
+                .removeClass('bg-warning bg-danger bg-secondary')
+                .addClass('bg-success text-white');
+        } else if (paidAmount > 0 && grandTotal > 0) {
+            paymentStatus.val('Partially Paid')
+                .removeClass('bg-success bg-danger bg-secondary')
+                .addClass('bg-warning text-dark');
+        } else {
+            paymentStatus.val('Not Paid')
+                .removeClass('bg-success bg-warning bg-secondary')
+                .addClass('bg-danger text-white');
+        }
+    }
+
+    function recalcRow(row) {
+        let qty = parseFloat(row.find('.qty').val()) || 0;
+        let price = parseFloat(row.find('.unit_price').val()) || 0;
+        let total = qty * price;
+        row.find('.total').val(total.toFixed(2));
+        recalcGrandTotal();
+        recalcItemsData();
+        
+        // Update stock display when recalculating
+        updateStockDisplay(row);
+        
+        // Save price when it changes
+        let productId = row.find('.product_select').val();
+        if (productId && price > 0) {
+            saveProductPrice(productId, price);
+        }
+    }
+
+    function recalcGrandTotal() {
+        let grand = 0;
+        $('#productsTable tbody tr').each(function() {
+            let total = parseFloat($(this).find('.total').val()) || 0;
+            grand += total;
+        });
+        $('#grandTotal').text(grand.toFixed(2));
+        
+        $('#id_paid_amount').attr('max', grand.toFixed(2));
+        let currentPaid = parseFloat($('#id_paid_amount').val()) || 0;
+        if (currentPaid > grand) {
+            $('#id_paid_amount').val(grand.toFixed(2));
+        }
+        updatePaymentStatus();
+    }
+
+    function recalcItemsData() {
+        let items = [];
+        $('#productsTable tbody tr').each(function() {
+            let row = $(this);
+            let product_id = row.find('.product_select').val();
+            if(product_id) {
+                items.push({
+                    product_id: parseInt(product_id),
+                    unit_price: parseFloat(row.find('.unit_price').val()),
+                    quantity: parseFloat(row.find('.qty').val()),
+                    total: parseFloat(row.find('.total').val())
+                });
+            }
+        });
+        $('#id_items_data').val(JSON.stringify(items));
+    }
+
+    // SAVE PRODUCT PRICE TO LOCALSTORAGE
+    function saveProductPrice(productId, price) {
+        productPrices[productId] = price;
+        localStorage.setItem('productPrices', JSON.stringify(productPrices));
+        console.log('Saved price for product', productId, ':', price);
+    }
+
+    // GET SAVED PRODUCT PRICE
+    function getSavedPrice(productId) {
+        return productPrices[productId] || null;
+    }
+
+    // CHECK STOCK AVAILABILITY FOR SPECIFIC LOCATION
+    function checkStockAvailability(productId, locationId, callback) {
+        if (productId && locationId) {
+            $.getJSON(`/inventory/api/stock/${productId}/${locationId}/`, function(data) {
+                if (data.quantity !== undefined) {
+                    callback(data.quantity);
+                } else {
+                    callback(0);
+                }
+            }).fail(function() {
+                callback(0);
+            });
+        } else {
+            callback(0);
+        }
+    }
+
+    // CHECK STOCK IN OTHER LOCATIONS FOR TRANSFER SUGGESTIONS
+    function checkOtherLocationsStock(productId, currentLocationId, callback) {
+        let locationsWithStock = [];
+        let checkedLocations = 0;
+        
+        allLocations.forEach(function(location) {
+            if (location.id !== currentLocationId) {
+                checkStockAvailability(productId, location.id, function(stockQty) {
+                    if (stockQty > 0) {
+                        locationsWithStock.push({
+                            location: location,
+                            stock: stockQty
+                        });
+                    }
+                    checkedLocations++;
+                    
+                    if (checkedLocations === allLocations.length - 1) {
+                        callback(locationsWithStock);
+                    }
+                });
+            } else {
+                checkedLocations++;
+            }
+        });
+    }
+
+    // UPDATE STOCK DISPLAY
+    function updateStockDisplay(row) {
+        let productId = row.find('.product_select').val();
+        let locationId = $('#id_location').val();
+        let quantity = parseFloat(row.find('.qty').val()) || 0;
+        let stockDisplay = row.find('.stock-display');
+        
+        if (productId && locationId) {
+            checkStockAvailability(productId, locationId, function(availableStock) {
+                let displayHtml = '';
+                
+                if (availableStock === 0) {
+                    displayHtml = '<div class="stock-warning">';
+                    displayHtml += '<i class="fas fa-exclamation-triangle"></i> 0';
+                    displayHtml += '</div>';
+                    
+                    row.addClass('low-stock');
+                    
+                    // Check other locations for transfer suggestions
+                    checkOtherLocationsStock(productId, locationId, function(locationsWithStock) {
+                        if (locationsWithStock.length > 0) {
+                            let suggestionHtml = '<div class="transfer-suggestion mt-1">';
+                            suggestionHtml += '<strong>Available in:</strong><br>';
+                            locationsWithStock.forEach(function(loc) {
+                                suggestionHtml += `• ${loc.location.name}: ${loc.stock}<br>`;
+                            });
+                            suggestionHtml += '<span class="transfer-link" onclick="openTransferModal(' + productId + ')">';
+                            suggestionHtml += '<i class="fas fa-exchange-alt"></i> Transfer stock';
+                            suggestionHtml += '</span>';
+                            suggestionHtml += '</div>';
+                            
+                            stockDisplay.append(suggestionHtml);
+                        }
+                    });
+                    
+                } else if (availableStock < quantity) {
+                    displayHtml = '<div class="stock-warning">';
+                    displayHtml += `<i class="fas fa-exclamation-triangle"></i> ${availableStock}`;
+                    displayHtml += '</div>';
+                    row.addClass('low-stock');
+                    
+                } else {
+                    displayHtml = '<div class="stock-ok">';
+                    displayHtml += `<i class="fas fa-check-circle"></i> ${availableStock}`;
+                    displayHtml += '</div>';
+                    row.removeClass('low-stock');
+                }
+                
+                stockDisplay.html(displayHtml);
+            });
+        } else {
+            stockDisplay.html('<div class="stock-info">-</div>');
+            row.removeClass('low-stock');
+        }
+    }
+
+    // FUNCTION TO INITIALIZE SELECT2 WITH AJAX SEARCH AND PRICE MEMORY
+    function initializeProductSelect(selectElement) {
+        selectElement.select2({
+            placeholder: "Search for a product by name or SKU...",
+            allowClear: true,
+            minimumInputLength: 2,
+            ajax: {
+                url: "{% url 'inventory:product_search_api' %}",
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        q: params.term,
+                        page: params.page
+                    };
+                },
+                processResults: function (data, params) {
+                    params.page = params.page || 1;
+                    return {
+                        results: data.products.map(function(product) {
+                            // Check if we have a saved price for this product
+                            let savedPrice = getSavedPrice(product.id);
+                            let priceInfo = savedPrice ? 
+                                ` - Last: $${savedPrice}` : 
+                                ` - Price: $${product.selling_price}`;
+                            
+                            return {
+                                id: product.id,
+                                text: product.name + ' (' + product.sku + ')' + priceInfo,
+                                selling_price: product.selling_price,
+                                saved_price: savedPrice
+                            };
+                        }),
+                        pagination: {
+                            more: false
+                        }
+                    };
+                },
+                cache: true
+            },
+            templateResult: function(product) {
+                if (product.loading) {
+                    return product.text;
+                }
+                
+                var $container = $(
+                    '<div class="product-option">' +
+                        '<div class="product-name"><strong>' + product.text + '</strong></div>' +
+                    '</div>'
+                );
+                
+                return $container;
+            },
+            templateSelection: function(product) {
+                return product.text || product.name || "Select a product...";
+            }
+        });
+    }
+
+    function createProductRow() {
+        rowCounter++;
+        let row = $('<tr class="product-row">').attr('data-row-id', rowCounter);
+        
+        // Product select cell
+        let productCell = $('<td>');
+        let productSelect = $('<select class="form-select product_select" data-row="' + rowCounter + '">')
+            .append('<option value=""></option>');
+        productCell.append(productSelect);
+        
+        // Stock Available cell
+        let stockCell = $('<td class="stock-display">');
+        stockCell.html('<div class="stock-info">-</div>');
+        
+        // Quantity cell
+        let qtyCell = $('<td>');
+        let qtyInput = $('<input type="number" class="form-control qty" step="1" value="1" min="1">');
+        qtyCell.append(qtyInput);
+        
+        // Unit Price cell
+        let priceCell = $('<td>');
+        let priceInput = $('<input type="number" class="form-control unit_price" step="0.01" min="0" placeholder="0.00">');
+        priceCell.append(priceInput);
+        
+        // Total cell
+        let totalCell = $('<td>');
+        let totalInput = $('<input type="number" class="form-control total" step="0.01" readonly placeholder="0.00">');
+        totalCell.append(totalInput);
+        
+        // Action cell
+        let actionCell = $('<td>');
+        let removeBtn = $('<button type="button" class="btn btn-danger btn-sm removeRow">')
+            .html('<i class="fas fa-trash"></i>');
+        actionCell.append(removeBtn);
+        
+        // Append all cells to row
+        row.append(productCell);
+        row.append(stockCell);
+        row.append(qtyCell);
+        row.append(priceCell);
+        row.append(totalCell);
+        row.append(actionCell);
+        
+        return row;
+    }
+
+    // ADD PRODUCT BUTTON HANDLER WITH PRICE MEMORY
+    $('#addProductBtn').click(function(){
+        console.log('Add Product button clicked');
+        let row = createProductRow();
+        $('#productsTable tbody').append(row);
+        
+        let productSelect = row.find('.product_select');
+        initializeProductSelect(productSelect);
+        
+        // Product selection handler
+        productSelect.on('select2:select', function(e) {
+            let data = e.params.data;
+            console.log('Product selected:', data);
+            if (data) {
+                let row = $(this).closest('tr');
+                
+                // Use saved price if available, otherwise use default selling price
+                let priceToUse = data.saved_price || data.selling_price;
+                row.find('.unit_price').val(parseFloat(priceToUse).toFixed(2));
+                
+                recalcRow(row);
+                
+                // Update stock display for selected product and location
+                updateStockDisplay(row);
+                
+                // Auto-focus quantity field
+                row.find('.qty').focus().select();
+            }
+        });
+
+        // Product clearing handler
+        productSelect.on('select2:clear', function() {
+            let row = $(this).closest('tr');
+            row.find('.unit_price').val('');
+            row.find('.qty').val('1');
+            row.find('.total').val('');
+            row.find('.stock-display').html('<div class="stock-info">-</div>');
+            row.removeClass('low-stock');
+            recalcGrandTotal();
+            recalcItemsData();
+        });
+
+        // Quantity and price change handlers
+        row.find('.qty, .unit_price').on('input', function() {
+            let row = $(this).closest('tr');
+            recalcRow(row);
+        });
+
+        // Remove row handler
+        row.find('.removeRow').click(function() {
+            $(this).closest('tr').remove();
+            recalcGrandTotal();
+            recalcItemsData();
+        });
+
+        recalcRow(row);
+        
+        // Auto-focus the product search
+        setTimeout(function() {
+            productSelect.select2('open');
+        }, 100);
+    });
+
+    // Update stock display when location changes
+    $('#id_location').change(function() {
+        $('#productsTable tbody tr').each(function() {
+            updateStockDisplay($(this));
+        });
+    });
+
+    // Update payment status when paid amount changes
+    $('#id_paid_amount').on('input', updatePaymentStatus);
+
+    // Form validation with stock check
+    $('#saleForm').submit(function(e) {
+        console.log('Form submission started');
+        recalcItemsData();
+        
+        let items = JSON.parse($('#id_items_data').val() || '[]');
+        
+        if (items.length === 0) {
+            alert('Please add at least one product to the sale.');
+            e.preventDefault();
+            return false;
+        }
+        
+        let emptyRows = false;
+        $('#productsTable tbody tr').each(function() {
+            if (!$(this).find('.product_select').val()) {
+                emptyRows = true;
+            }
+        });
+        
+        if (emptyRows) {
+            alert('Please select products for all rows or remove empty rows.');
+            e.preventDefault();
+            return false;
+        }
+        
+        let locationId = $('#id_location').val();
+        if (!locationId) {
+            alert('Please select a location.');
+            e.preventDefault();
+            return false;
+        }
+        
+        let hasStockIssues = false;
+        let stockIssueMessages = [];
+        
+        $('#productsTable tbody tr').each(function() {
+            if ($(this).hasClass('low-stock')) {
+                hasStockIssues = true;
+                let productName = $(this).find('.product_select').find('option:selected').text().split(' - ')[0];
+                stockIssueMessages.push(productName);
+            }
+        });
+        
+        if (hasStockIssues) {
+            let message = 'Some products have insufficient stock:\n\n' + 
+                         stockIssueMessages.join('\n') + 
+                         '\n\nDo you want to continue anyway?';
+            if (!confirm(message)) {
+                e.preventDefault();
+                return false;
+            }
+        }
+        
+        let documentType = $('#id_document_type').val();
+        let customer = $('#id_customer').val();
+        if (documentType === 'invoice' && !customer) {
+            alert('Customer is required for invoices.');
+            e.preventDefault();
+            return false;
+        }
+        
+        console.log('Form validation passed');
+        return true;
+    });
+
+    // Initialize payment status
+    updatePaymentStatus();
+    
+    // Auto-add first product row when page loads
+    setTimeout(function() {
+        if ($('#productsTable tbody tr').length === 0) {
+            console.log('Auto-adding first product row');
+            $('#addProductBtn').click();
+        }
+    }, 500);
+    
+    // Clear saved prices button (for testing/debugging)
+    $('body').append('<button type="button" id="clearPrices" style="position: fixed; bottom: 10px; right: 10px; z-index: 1000; display: none;" class="btn btn-warning btn-sm">Clear Prices</button>');
+    $('#clearPrices').click(function() {
+        localStorage.removeItem('productPrices');
+        productPrices = {};
+        alert('Saved prices cleared!');
+        location.reload();
+    });
+});
+
+// Function to open transfer modal
+function openTransferModal(productId) {
+    let productName = $('#productsTable').find('.product_select option:selected').text().split(' - ')[0];
+    let currentLocation = $('#id_location option:selected').text();
+    
+    if (confirm(`Redirect to stock transfer page for "${productName}" from other locations to "${currentLocation}"?`)) {
+        window.open(`{% url 'inventory:transfer_add' %}?product_id=${productId}&to_location=${$('#id_location').val()}`, '_blank');
+    }
+}
+</script>

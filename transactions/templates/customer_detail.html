@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+
+{% block content %}
+<div class="card p-3">
+    <h3>Customer History</h3>
+    
+    <div class="mb-4">
+        <h5>{{ customer.name }}</h5>
+        <p><strong>TIN:</strong> {{ customer.tin }}</p>
+        <p><strong>Location:</strong> {{ customer.location.name if customer.location else '-' }}</p>
+        <p><strong>Supply:</strong> {{ customer.supply|floatformat:2 }}</p>
+        <p><strong>Balance:</strong> {{ customer.balance|floatformat:2 }}</p>
+    </div>
+
+    <h5>Payments</h5>
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Method</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for payment in payments %}
+            <tr>
+                <td>{{ payment.date }}</td>
+                <td>{{ payment.amount|floatformat:2 }}</td>
+                <td>{{ payment.get_method_display }}</td>
+                <td>{{ payment.notes }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" class="text-center text-muted">No payments found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h5 class="mt-4">Transactions</h5>
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Opening Balance</th>
+                <th>Paid</th>
+                <th>Customer Balance</th>
+                <th>Wholesale</th>
+                <th>Cash</th>
+                <th>Debt</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in transactions %}
+            <tr>
+                <td>{{ t.date }}</td>
+                <td>{{ t.opening_balance|floatformat:2 }}</td>
+                <td>{{ t.paid|floatformat:2 }}</td>
+                <td>{{ t.customer_balance|floatformat:2 }}</td>
+                <td>{{ t.wholesale|floatformat:2 }}</td>
+                <td>{{ t.cash|floatformat:2 }}</td>
+                <td>{{ t.debt|floatformat:2 }}</td>
+                <td>{{ t.notes }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" class="text-center text-muted">No transactions found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="{% url 'transactions:customers' %}" class="btn btn-secondary mt-3">Back to Customers</a>
+</div>
+{% endblock %}

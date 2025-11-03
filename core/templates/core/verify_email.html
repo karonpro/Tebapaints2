@@ -1,0 +1,115 @@
+<!-- templates/core/verify_email.html -->
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Verify Your Email Address</h4>
+                </div>
+                <div class="card-body">
+                    <!-- Display messages -->
+                    {% if messages %}
+                    <div class="mb-3">
+                        {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="alert alert-info">
+                        <h6>Verification Required</h6>
+                        <p class="mb-1">We've sent a 6-digit verification code to:</p>
+                        <strong>{{ request.user.email }}</strong>
+                        <p class="mt-2 mb-0">Please check your email and enter the code below to verify your email address.</p>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-4">
+                            <label for="verification_code" class="form-label fw-bold">Enter Verification Code</label>
+                            <input type="text" 
+                                   class="form-control form-control-lg text-center fw-bold" 
+                                   id="verification_code" 
+                                   name="verification_code" 
+                                   maxlength="6" 
+                                   pattern="[0-9]{6}"
+                                   title="Enter 6-digit code"
+                                   placeholder="000000"
+                                   required
+                                   autofocus
+                                   style="font-size: 1.5rem; letter-spacing: 0.5rem;">
+                            <div class="form-text text-center">
+                                Enter the 6-digit code from your email
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" name="verify_code" class="btn btn-primary btn-lg">
+                                ✅ Verify Email Address
+                            </button>
+                            
+                            <button type="submit" name="resend_code" class="btn btn-outline-secondary">
+                                🔄 Resend Verification Code
+                            </button>
+                            
+                            <a href="{% url 'core:profile' %}" class="btn btn-link">
+                                ← Back to Profile
+                            </a>
+                        </div>
+                    </form>
+
+                    <div class="mt-4 p-3 bg-light rounded">
+                        <h6>Didn't receive the code?</h6>
+                        <ul class="small mb-0">
+                            <li>Check your spam or junk folder</li>
+                            <li>Make sure you entered the correct email address</li>
+                            <li>Click "Resend Verification Code" to send a new code</li>
+                            <li>The code expires in 15 minutes</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const codeInput = document.getElementById('verification_code');
+    
+    // Auto-advance and numeric only
+    codeInput.addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9]/g, '');
+        if (this.value.length === 6) {
+            this.blur();
+        }
+    });
+    
+    codeInput.addEventListener('keypress', function(e) {
+        if (!/[0-9]/.test(e.key)) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
+
+<style>
+#verification_code {
+    border: 2px solid #dee2e6;
+    transition: all 0.3s ease;
+}
+
+#verification_code:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+</style>
+{% endblock %}

@@ -1,0 +1,5 @@
+Django>=4.2,<5
+Django>=4.2
+django-allauth>=0.54
+django-axes>=6.0
+python-dotenv>=1.0

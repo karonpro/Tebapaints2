@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card p-4 shadow-sm rounded-4">
+    <h3 class="mb-4">{% if obj %}Edit{% else %}New{% endif %} Customer</h3>
+    <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label for="id_name" class="form-label">Name</label>
+                {{ form.name }}
+            </div>
+            <div class="col-md-6">
+                <label for="id_tin" class="form-label">TIN</label>
+                {{ form.tin }}
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label for="id_phone" class="form-label">Phone</label>
+                {{ form.phone }}
+            </div>
+            <div class="col-md-6">
+                <label for="id_email" class="form-label">Email</label>
+                {{ form.email }}
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label for="id_address" class="form-label">Address</label>
+                {{ form.address }}
+            </div>
+            <div class="col-md-6">
+                <label for="id_location" class="form-label">Location</label>
+                {{ form.location }}
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label for="id_supply" class="form-label">Supply</label>
+                {{ form.supply }}
+            </div>
+            <div class="col-md-6">
+                <label for="id_balance" class="form-label">Balance</label>
+                {{ form.balance }}
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <button type="submit" class="btn btn-success btn-lg">Save Customer</button>
+            <a href="{% url 'transactions:customers' %}" class="btn btn-secondary btn-lg ms-2">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

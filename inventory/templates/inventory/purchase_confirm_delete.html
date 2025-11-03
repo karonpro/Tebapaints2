@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Delete Purchase - Inventory Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Delete Purchase</h1>
+        <a href="{% url 'inventory:purchase_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left fa-sm"></i> Back to Purchases
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 bg-warning">
+                    <h6 class="m-0 font-weight-bold text-white">Confirm Deletion</h6>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <h5><i class="fas fa-exclamation-triangle"></i> Warning!</h5>
+                        <p>You are about to delete the following purchase. This action cannot be undone.</p>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h6>Purchase Details:</h6>
+                            <p><strong>Reference:</strong> {{ purchase.reference }}</p>
+                            <p><strong>Supplier:</strong> {{ purchase.supplier_name }}</p>
+                            <p><strong>Location:</strong> {{ purchase.location.name }}</p>
+                            <p><strong>Total Amount:</strong> ${{ purchase.total_amount }}</p>
+                            <p><strong>Items:</strong> {{ purchase.items.count }} items</p>
+                            <p><strong>Date:</strong> {{ purchase.purchase_date|date:"M d, Y H:i" }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> 
+                        Stock quantities will be adjusted for all items in this purchase.
+                    </div>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-trash"></i> Confirm Delete
+                            </button>
+                            <a href="{% url 'inventory:purchase_list' %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

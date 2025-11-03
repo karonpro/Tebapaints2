@@ -1,0 +1,2 @@
+
+{% extends 'base.html' %}{% block content %}<div class="card p-3"><h3>Delete Transaction</h3><p>Confirm deletion dated {{ obj.date }}</p><form method="post">{% csrf_token %}<button class="btn btn-danger" type="submit">Delete</button> <a class="btn btn-secondary" href="{% url 'transactions:list' %}">Cancel</a></form></div>{% endblock %}

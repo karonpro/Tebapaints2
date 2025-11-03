@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Teba Inventory Management{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Chart.js for Reports -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Print Styles -->
+    <style>
+        @media print {
+            .no-print, .navbar, .btn, .dropdown, .breadcrumb, .footer,
+            .alert, .card-header .btn, .filters-section {
+                display: none !important;
+            }
+            
+            .container-fluid {
+                padding: 0 !important;
+                max-width: 100% !important;
+            }
+            
+            .card {
+                border: 1px solid #000 !important;
+                box-shadow: none !important;
+                margin-bottom: 15px !important;
+                page-break-inside: avoid;
+            }
+            
+            .card-header {
+                background-color: #f8f9fa !important;
+                color: #000 !important;
+                border-bottom: 2px solid #000 !important;
+            }
+            
+            .table {
+                border: 1px solid #000 !important;
+            }
+            
+            .table th {
+                background-color: #f8f9fa !important;
+                color: #000 !important;
+                border-bottom: 2px solid #000 !important;
+            }
+            
+            .table td, .table th {
+                border: 1px solid #ddd !important;
+                padding: 6px !important;
+            }
+            
+            .text-primary, .text-success, .text-warning, .text-danger {
+                color: #000 !important;
+            }
+            
+            .bg-primary, .bg-success, .bg-warning, .bg-danger {
+                background-color: #f8f9fa !important;
+                color: #000 !important;
+            }
+        }
+    </style>
+
+    <!-- Custom Dark Theme Styles -->
+    <style>
+        :root {
+            --bg: #071029;
+            --card: #0e1622;
+            --muted: #9fb0c8;
+            --accent: #4f46e5;
+            --accent2: #06b6d4;
+            --positive: #10b981;
+            --negative: #ef4444;
+            --warning: #f59e0b;
+            --border: #1e293b;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--muted);
+            padding: 18px;
+            font-family: 'Inter', system-ui, 'Roboto', sans-serif;
+            min-height: 100vh;
+        }
+
+        /* Card Styles */
+        .card {
+            background: var(--card);
+            color: var(--muted);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px -3px rgba(0, 0, 0, 0.4);
+        }
+
+        .card-header {
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid var(--border);
+            border-radius: 12px 12px 0 0 !important;
+            padding: 1rem 1.5rem;
+        }
+
+        /* Navigation Styles */
+        .navbar {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            border: 1px solid var(--border);
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: white !important;
+        }
+
+        .nav-link {
+            color: var(--muted) !important;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-radius: 8px;
+            margin: 0 2px;
+            padding: 0.5rem 1rem !important;
+        }
+
+        .nav-link:hover, .nav-link:focus {
+            color: var(--accent) !important;
+            background: rgba(79, 70, 229, 0.1);
+        }
+
+        .nav-link.active {
+            color: var(--accent) !important;
+            background: rgba(79, 70, 229, 0.15);
+        }
+
+        /* Dropdown Styles */
+        .dropdown-menu {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
+        .dropdown-item {
+            color: var(--muted);
+            padding: 0.75rem 1rem;
+            transition: all 0.2s ease;
+        }
+
+        .dropdown-item:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* Button Styles */
+        .btn {
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #4338ca;
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: var(--positive);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--negative);
+            color: white;
+        }
+
+        .btn-outline-primary {
+            border: 2px solid var(--accent);
+            color: var(--accent);
+            background: transparent;
+        }
+
+        .btn-outline-primary:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* Badge Styles */
+        .badge {
+            border-radius: 6px;
+            font-weight: 600;
+            padding: 0.35em 0.65em;
+        }
+
+        .badge-positive {
+            background: var(--positive);
+            color: #052018;
+        }
+
+        .badge-negative {
+            background: var(--negative);
+            color: white;
+        }
+
+        .badge-warning {
+            background: var(--warning);
+            color: #451a03;
+        }
+
+        /* Table Styles */
+        .table {
+            color: var(--muted);
+            margin-bottom: 0;
+        }
+
+        .table-hover tbody tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .table-striped tbody tr:nth-of-type(odd) {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Form Styles */
+        .form-control, .form-select {
+            background: var(--card);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            border-radius: 8px;
+        }
+
+        .form-control:focus, .form-select:focus {
+            background: var(--card);
+            border-color: var(--accent);
+            color: var(--muted);
+            box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.25);
+        }
+
+        .form-label {
+            color: var(--muted);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Alert Styles */
+        .alert {
+            border: none;
+            border-radius: 8px;
+            border-left: 4px solid;
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            border-left-color: var(--positive);
+            color: #a7f3d0;
+        }
+
+        .alert-danger {
+            background: rgba(239, 68, 68, 0.1);
+            border-left-color: var(--negative);
+            color: #fca5a5;
+        }
+
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.1);
+            border-left-color: var(--warning);
+            color: #fde68a;
+        }
+
+        .alert-info {
+            background: rgba(6, 182, 212, 0.1);
+            border-left-color: var(--accent2);
+            color: #a5f3fc;
+        }
+
+        /* Utility Classes */
+        .text-white { color: white !important; }
+        .text-gray-800 { color: white !important; }
+        .text-gray-300 { color: var(--muted) !important; }
+        
+        .bg-white { background-color: var(--card) !important; }
+        .bg-light { background-color: rgba(255, 255, 255, 0.05) !important; }
+        
+        .text-primary { color: var(--accent) !important; }
+        .text-success { color: var(--positive) !important; }
+        .text-warning { color: var(--warning) !important; }
+        .text-danger { color: var(--negative) !important; }
+        .text-info { color: var(--accent2) !important; }
+
+        .border-left-primary { border-left: 4px solid var(--accent) !important; }
+        .border-left-success { border-left: 4px solid var(--positive) !important; }
+        .border-left-warning { border-left: 4px solid var(--warning) !important; }
+        .border-left-info { border-left: 4px solid var(--accent2) !important; }
+
+        .shadow { box-shadow: 0 0.15rem 1.75rem 0 rgba(0, 0, 0, 0.5) !important; }
+
+        /* List Group */
+        .list-group-item {
+            background: var(--card);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            transition: all 0.3s ease;
+        }
+
+        .list-group-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        /* User Info */
+        .user-info {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        /* Quick Actions */
+        .quick-action-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .quick-action-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px -8px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Print Section */
+        .printable-section {
+            position: relative;
+        }
+
+        .section-print-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+        }
+
+        /* Loading Spinner */
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        /* Responsive Adjustments */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .navbar-brand {
+                font-size: 1.25rem;
+            }
+            
+            .card {
+                margin-bottom: 1rem;
+            }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <!-- Brand -->
+            <a class="navbar-brand" href="{% url 'inventory:dashboard' %}">
+                <i class="fas fa-warehouse me-2"></i>Teba Paint Center
+            </a>
+
+            <!-- Mobile Toggle -->
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <!-- Navigation Items -->
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <!-- Dashboard -->
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" 
+                           href="{% url 'inventory:dashboard' %}">
+                            <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                        </a>
+                    </li>
+
+                    <!-- Inventory Mega Menu -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-boxes me-1"></i>Inventory
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><h6 class="dropdown-header text-primary">Products & Stock</h6></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:product_list' %}">
+                                <i class="fas fa-cube me-2"></i>Products
+                                <span class="badge bg-primary float-end">{{ product_count|default:0 }}</span>
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:category_list' %}">
+                                <i class="fas fa-tags me-2"></i>Categories
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:supplier_list' %}">
+                                <i class="fas fa-truck me-2"></i>Suppliers
+                            </a></li>
+                            
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-success">Transactions</h6></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:purchase_list' %}">
+                                <i class="fas fa-shopping-cart me-2"></i>Purchases
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:sale_list' %}">
+                                <i class="fas fa-cash-register me-2"></i>Sales
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:transfer_list' %}">
+                                <i class="fas fa-exchange-alt me-2"></i>Transfers
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:retail_sale' %}">
+                                <i class="fas fa-store me-2"></i>Retail Sales
+                            </a></li>
+                            
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:stocktake_list' %}">
+                                <i class="fas fa-clipboard-check me-2"></i>Stocktake
+                            </a></li>
+                        </ul>
+                    </li>
+
+                    <!-- Orders -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-clipboard-list me-1"></i>Orders
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'inventory:purchase_order_list' %}">
+                                <i class="fas fa-file-invoice me-2"></i>Purchase Orders
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:sale_order_list' %}">
+                                <i class="fas fa-file-invoice-dollar me-2"></i>Sale Orders
+                            </a></li>
+                        </ul>
+                    </li>
+
+                    <!-- Reports Mega Menu -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-chart-bar me-1"></i>Reports
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><h6 class="dropdown-header text-info">Inventory Reports</h6></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:stock_report' %}">
+                                <i class="fas fa-boxes me-2"></i>Stock Report
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:sales_report' %}">
+                                <i class="fas fa-chart-line me-2"></i>Sales Report
+                            </a></li>
+                            
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-warning">Advanced Analytics</h6></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:reports_dashboard' %}">
+                                <i class="fas fa-analytics me-2"></i>Reports Dashboard
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:sales_summary_report' %}">
+                                <i class="fas fa-file-invoice-dollar me-2"></i>Sales Summary
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:product_performance_report' %}">
+                                <i class="fas fa-star me-2"></i>Product Performance
+                            </a></li>
+                            
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{% url 'transactions:report_home' %}">
+                                <i class="fas fa-file-alt me-2"></i>Financial Reports
+                            </a></li>
+                        </ul>
+                    </li>
+
+                    <!-- Company -->
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'company_details' %}active{% endif %}" 
+                           href="{% url 'inventory:company_details' %}">
+                            <i class="fas fa-building me-1"></i>Company
+                        </a>
+                    </li>
+
+                    <!-- User Management (Admin Only) -->
+                    {% if user.is_authenticated and user.profile.role == 'admin' %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-users-cog me-1"></i>Admin
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><h6 class="dropdown-header text-warning">User Management</h6></li>
+                            <li><a class="dropdown-item" href="{% url 'core:user_list' %}">
+                                <i class="fas fa-list me-2"></i>All Users
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'core:user_create' %}">
+                                <i class="fas fa-user-plus me-2"></i>Add User
+                            </a></li>
+                            
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-info">System</h6></li>
+                            <li><a class="dropdown-item" href="/admin/">
+                                <i class="fas fa-cog me-2"></i>Django Admin
+                            </a></li>
+                        </ul>
+                    </li>
+                    {% endif %}
+
+                    <!-- Legacy Modules -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-exchange-alt me-1"></i>Transactions
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'transactions:customers' %}">
+                                <i class="fas fa-users me-2"></i>Customers
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'transactions:expenses' %}">
+                                <i class="fas fa-receipt me-2"></i>Expenses
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'transactions:home' %}">
+                                <i class="fas fa-home me-2"></i>Transactions Home
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <!-- User Section -->
+                <ul class="navbar-nav">
+                    {% if user.is_authenticated %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle me-1"></i>
+                            <span class="d-none d-md-inline">{{ user.username }}</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <div class="dropdown-item-text user-info">
+                                    <div class="d-flex align-items-center">
+                                        <div class="flex-shrink-0">
+                                            <i class="fas fa-user-tag text-primary"></i>
+                                        </div>
+                                        <div class="flex-grow-1 ms-3">
+                                            <small class="d-block">{{ user.profile.get_role_display }}</small>
+                                            <small class="text-muted">
+                                                <i class="fas fa-map-marker-alt me-1"></i>
+                                                {% if user.profile.assigned_location %}
+                                                    {{ user.profile.assigned_location.name }}
+                                                {% else %}
+                                                    All Locations
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{% url 'core:profile' %}">
+                                <i class="fas fa-user me-2"></i>My Profile
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'core:change_password' %}">
+                                <i class="fas fa-key me-2"></i>Change Password
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form method="post" action="{% url 'account_logout' %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="dropdown-item text-danger">
+                                        <i class="fas fa-sign-out-alt me-2"></i>Logout
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'account_login' %}">
+                            <i class="fas fa-sign-in-alt me-1"></i>Login
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Messages/Alerts -->
+    {% if messages %}
+    <div class="container-fluid mb-4">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            <div class="d-flex align-items-center">
+                {% if message.tags == 'success' %}
+                    <i class="fas fa-check-circle me-2 fa-lg"></i>
+                {% elif message.tags == 'error' or message.tags == 'danger' %}
+                    <i class="fas fa-exclamation-circle me-2 fa-lg"></i>
+                {% elif message.tags == 'warning' %}
+                    <i class="fas fa-exclamation-triangle me-2 fa-lg"></i>
+                {% else %}
+                    <i class="fas fa-info-circle me-2 fa-lg"></i>
+                {% endif %}
+                <div class="flex-grow-1">
+                    {{ message }}
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Breadcrumb Navigation -->
+    {% block breadcrumb %}
+    <div class="container-fluid mb-4 no-print">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb" style="background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem;">
+                <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}" class="text-decoration-none"><i class="fas fa-home me-1"></i>Home</a></li>
+                {% block breadcrumb_items %}{% endblock %}
+            </ol>
+        </nav>
+    </div>
+    {% endblock %}
+
+    <!-- Main Content -->
+    <div class="container-fluid">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-5 pt-4 border-top no-print" style="border-color: var(--border) !important;">
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="text-muted">
+                        &copy; {% now "Y" %} Teba Inventory Management System. 
+                        <span class="d-none d-md-inline">All rights reserved.</span>
+                    </p>
+                </div>
+                <div class="col-md-6 text-end">
+                    <small class="text-muted">
+                        v1.0.0 | 
+                        <i class="fas fa-database me-1"></i>{{ db_usage|default:"0" }}% |
+                        <i class="fas fa-user me-1"></i>{{ user_count|default:"1" }} users
+                    </small>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="loading-spinner">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2 text-muted">Processing...</p>
+    </div>
+
+    <!-- Session Timeout Warning Modal -->
+    <div class="modal fade" id="sessionTimeoutModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title">
+                        <i class="fas fa-clock me-2"></i>Session About to Expire
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <p>Your session will expire in <span id="countdown">2:00</span> due to inactivity.</p>
+                    <p>Do you want to continue working?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="logoutBtn">
+                        <i class="fas fa-sign-out-alt me-1"></i>Log Out
+                    </button>
+                    <button type="button" class="btn btn-primary" id="continueBtn">
+                        <i class="fas fa-sync-alt me-1"></i>Continue Session
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Global JavaScript -->
+    <script>
+        // Global utility functions
+        function showLoading() {
+            document.getElementById('loadingSpinner').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+
+        // Print functionality
+        function printReport() {
+            window.print();
+        }
+
+        function printSection(sectionElement) {
+            const section = sectionElement.closest('.printable-section');
+            const originalContent = document.body.innerHTML;
+            const sectionContent = section.outerHTML;
+            
+            document.body.innerHTML = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Print Section</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; color: #000; }
+                        .card { border: 1px solid #000; margin-bottom: 15px; }
+                        .card-header { background-color: #f8f9fa; padding: 10px; border-bottom: 2px solid #000; font-weight: bold; }
+                        .table { width: 100%; border-collapse: collapse; }
+                        .table th, .table td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+                        .table th { background-color: #f8f9fa; }
+                        @media print { .no-print { display: none; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="no-print" style="margin-bottom: 20px; text-align: center;">
+                        <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            Print This Section
+                        </button>
+                        <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;">
+                            Close
+                        </button>
+                    </div>
+                    ${sectionContent}
+                </body>
+                </html>
+            `;
+            
+            window.print();
+            document.body.innerHTML = originalContent;
+        }
+
+        // Session timeout management
+        let timeoutWarning;
+        let timeoutLogout;
+        const warningTime = 2 * 60 * 1000; // 2 minutes warning
+        const logoutTime = 30 * 60 * 1000; // 30 minutes total
+        
+        let countdownInterval;
+        let countdownTime = 120; // 2 minutes in seconds
+
+        function startSessionTimers() {
+            // Clear existing timers
+            clearTimeout(timeoutWarning);
+            clearTimeout(timeoutLogout);
+            clearInterval(countdownInterval);
+            
+            // Set warning timer (28 minutes)
+            timeoutWarning = setTimeout(showTimeoutWarning, logoutTime - warningTime);
+            
+            // Set logout timer (30 minutes)
+            timeoutLogout = setTimeout(logoutUser, logoutTime);
+        }
+
+        function showTimeoutWarning() {
+            const modal = new bootstrap.Modal(document.getElementById('sessionTimeoutModal'));
+            modal.show();
+            
+            // Start countdown
+            countdownTime = 120;
+            updateCountdown();
+            countdownInterval = setInterval(updateCountdown, 1000);
+            
+            // Set auto-logout after warning period
+            clearTimeout(timeoutLogout);
+            timeoutLogout = setTimeout(logoutUser, warningTime);
+        }
+
+        function updateCountdown() {
+            const minutes = Math.floor(countdownTime / 60);
+            const seconds = countdownTime % 60;
+            document.getElementById('countdown').textContent = 
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            if (countdownTime <= 0) {
+                clearInterval(countdownInterval);
+                logoutUser();
+            }
+            countdownTime--;
+        }
+
+        function logoutUser() {
+            // Create a form and submit it to properly logout with CSRF
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = "{% url 'account_logout' %}";
+            
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+            if (csrfToken) {
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrfmiddlewaretoken';
+                csrfInput.value = csrfToken;
+                form.appendChild(csrfInput);
+            }
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        function resetSessionTimers() {
+            startSessionTimers();
+            
+            // Send keep-alive request to server
+            fetch('{% url "core:session_test" %}', {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            }).catch(error => console.log('Keep-alive request failed'));
+        }
+
+        // Auto-dismiss alerts after 5 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-dismiss alerts
+            setTimeout(function() {
+                const alerts = document.querySelectorAll('.alert');
+                alerts.forEach(function(alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                });
+            }, 5000);
+
+            // Add active class to current page in navigation
+            const currentPath = window.location.pathname;
+            document.querySelectorAll('.nav-link').forEach(link => {
+                if (link.getAttribute('href') === currentPath) {
+                    link.classList.add('active');
+                }
+            });
+
+            // Initialize tooltips
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+
+            // Add print buttons to printable sections
+            const printableSections = document.querySelectorAll('.printable-section');
+            printableSections.forEach(section => {
+                const header = section.querySelector('.card-header');
+                if (header && !header.querySelector('.section-print-btn')) {
+                    const printBtn = document.createElement('button');
+                    printBtn.className = 'btn btn-sm btn-outline-primary section-print-btn no-print';
+                    printBtn.innerHTML = '<i class="fas fa-print me-1"></i>';
+                    printBtn.title = 'Print this section';
+                    printBtn.onclick = function() {
+                        printSection(this);
+                    };
+                    header.appendChild(printBtn);
+                }
+            });
+
+            // Session timeout event listeners
+            ['click', 'mousemove', 'keypress', 'scroll', 'touchstart'].forEach(event => {
+                document.addEventListener(event, resetSessionTimers, { passive: true });
+            });
+
+            // Modal button handlers
+            document.getElementById('continueBtn')?.addEventListener('click', function() {
+                resetSessionTimers();
+                bootstrap.Modal.getInstance(document.getElementById('sessionTimeoutModal')).hide();
+            });
+
+            document.getElementById('logoutBtn')?.addEventListener('click', logoutUser);
+
+            // Initialize timers
+            startSessionTimers();
+        });
+
+        // Global AJAX error handler
+        document.addEventListener('ajaxError', function(event) {
+            showNotification('An error occurred while processing your request.', 'danger');
+            hideLoading();
+        });
+
+        // Notification function
+        function showNotification(message, type = 'info') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+            `;
+            
+            const container = document.querySelector('.container-fluid');
+            container.insertBefore(alertDiv, container.firstChild);
+            
+            setTimeout(() => {
+                const bsAlert = new bootstrap.Alert(alertDiv);
+                bsAlert.close();
+            }, 5000);
+        }
+    </script>
+
+    <!-- Page-specific Scripts -->
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!-- templates/inventory/retail/sale_detail.html -->
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Sale Details - {{ sale.product.name }}{% endblock %}
+{% block page_title %}Sale Details{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-receipt me-2"></i>Sale Receipt
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h6 class="text-muted">Product Information</h6>
+                        <p class="mb-1"><strong>Product:</strong> {{ sale.product.name }}</p>
+                        {% if sale.product.description %}
+                            <p class="mb-1"><strong>Description:</strong> {{ sale.product.description }}</p>
+                        {% endif %}
+                        {% if sale.product.unit %}
+                            <p class="mb-1"><strong>Unit:</strong> {{ sale.product.unit }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted">Sale Details</h6>
+                        <p class="mb-1"><strong>Date:</strong> {{ sale.sale_date|date:"F d, Y" }}</p>
+                        <p class="mb-1"><strong>Time:</strong> {{ sale.sale_date|date:"H:i:s" }}</p>
+                        <p class="mb-1"><strong>Location:</strong> {{ sale.location.name }}</p>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Quantity Given</th>
+                                        <th>Unit Price</th>
+                                        <th>Amount Received</th>
+                                        <th>Sold By</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td class="text-center fs-5">{{ sale.quantity_given|floatformat:2 }}</td>
+                                        <td class="text-center fs-5">${{ sale.unit_price|floatformat:2 }}</td>
+                                        <td class="text-center fs-5 text-success">${{ sale.amount_given|floatformat:2 }}</td>
+                                        <td class="text-center">{{ sale.sold_by.get_full_name|default:sale.sold_by.username }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            <h6 class="alert-heading">Calculation:</h6>
+                            ${{ sale.amount_given|floatformat:2 }} ÷ ${{ sale.unit_price|floatformat:2 }}/unit 
+                            = {{ sale.quantity_given|floatformat:2 }} units
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'inventory:retail_sales_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>Back to Sales
+                    </a>
+                    <div>
+                        <a href="#" class="btn btn-outline-primary me-2" onclick="window.print()">
+                            <i class="fas fa-print me-1"></i>Print Receipt
+                        </a>
+                        <form method="post" action="{% url 'inventory:delete_retail_sale' sale.id %}" 
+                              class="d-inline" onsubmit="return confirm('Are you sure you want to delete this sale? This action cannot be undone.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger">
+                                <i class="fas fa-trash me-1"></i>Delete Sale
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Related Information -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">Product Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    {% if sale.product.image %}
+                        <img src="{{ sale.product.image.url }}" alt="{{ sale.product.name }}" 
+                             class="img-fluid rounded" style="max-height: 150px;">
+                    {% else %}
+                        <div class="bg-light rounded d-flex align-items-center justify-content-center" 
+                             style="height: 150px;">
+                            <i class="fas fa-box-open fa-3x text-muted"></i>
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <dl class="row">
+                    <dt class="col-sm-5">Product Code:</dt>
+                    <dd class="col-sm-7">{{ sale.product.code|default:"-" }}</dd>
+
+                    <dt class="col-sm-5">Category:</dt>
+                    <dd class="col-sm-7">{{ sale.product.category|default:"-" }}</dd>
+
+                    <dt class="col-sm-5">Current Retail Stock:</dt>
+                    <dd class="col-sm-7">
+                        {% with retail_stock=sale.retailstock_set.first %}
+                            {% if retail_stock %}
+                                <span class="badge {% if retail_stock.quantity < 10 %}bg-danger{% elif retail_stock.quantity < 25 %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ retail_stock.quantity|floatformat:2 }} units
+                                </span>
+                            {% else %}
+                                <span class="badge bg-secondary">0 units</span>
+                            {% endif %}
+                        {% endwith %}
+                    </dd>
+                </dl>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="card-title mb-0">Quick Actions</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'inventory:retail_sale' %}?product={{ sale.product.id }}&location={{ sale.location.id }}" 
+                       class="btn btn-success">
+                        <i class="fas fa-cash-register me-1"></i>New Sale (Same Product)
+                    </a>
+                    <a href="{% url 'inventory:retail_stock' %}" class="btn btn-outline-info">
+                        <i class="fas fa-boxes me-1"></i>View Retail Stock
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    .sidebar, .card-footer, .btn, .alert-info {
+        display: none !important;
+    }
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+    }
+    .card-header {
+        background: white !important;
+        color: black !important;
+        border-bottom: 2px solid #000 !important;
+    }
+}
+</style>
+{% endblock %}
