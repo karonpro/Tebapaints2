@@ -29,7 +29,7 @@ ALLOWED_HOSTS = [
     '127.0.0.1',               # local dev
     'localhost',               # local dev
     '0.0.0.0',                 # sometimes used locally
-    'teba-paint-center.onrender.com',  # production on Render
+    'system-teba.onrender.com',  # Render production domain
 ]
 
 # =======================
@@ -183,7 +183,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
     'http://localhost:8000',
     'http://0.0.0.0:8000',
-    'https://teba-paint-center.onrender.com',
+    'https://system-teba.onrender.com',
 ]
 
 # =======================
@@ -259,7 +259,7 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 # =======================
 
 SITE_NAME = "Teba System"
-SITE_DOMAIN = "teba-paint-center.onrender.com"
+SITE_DOMAIN = "system-teba.onrender.com"
 
 ADMINS = [('Admin', os.getenv('ADMIN_EMAIL', 'tebaspprt@gmail.com'))]
 MANAGERS = ADMINS
