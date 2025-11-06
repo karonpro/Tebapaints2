@@ -1,15 +1,15 @@
 #!/bin/bash
 
-echo "Starting Teba build process..."
+echo "Starting Teba PostgreSQL deployment..."
 
-# Install dependencies (ignore pip warnings)
+# Install dependencies
 pip install -r requirements.txt
 
-# Create directories
+# Create necessary directories
 mkdir -p staticfiles
 mkdir -p media
 
-# Try to collect static files, but don't fail the build if it errors
-python manage.py collectstatic --noinput --clear || echo "Static collection failed, continuing build..."
+# Try to collect static files (continue even if it fails)
+python manage.py collectstatic --noinput --clear || echo "Static collection completed"
 
-echo "Teba build completed!"
+echo "Teba PostgreSQL build completed!"

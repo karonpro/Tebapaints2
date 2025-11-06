@@ -125,11 +125,12 @@ import os
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.getenv('DATABASE_URL', f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
+        default='postgresql://postgres:TzchIqSeREvuncRjOvnhGvqaLMYmkAIu@nozomi.proxy.rlwy.net:56660/railway',
         conn_max_age=600,
-        ssl_require=not DEBUG,
+        ssl_require=True
     )
 }
+
 
 
 # =======================
@@ -195,6 +196,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://teba-git-main-karonpros-projects.vercel.app',  # Vercel
     'https://*.vercel.app',
     'https://*.now.sh',
+    'https://nozomi.proxy.rlwy.net',
 ]
 
 

@@ -2,12 +2,8 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/index.py",
+      "src": "teba/wsgi.py",
       "use": "@vercel/python"
-    },
-    {
-      "src": "build_files.sh",
-      "use": "@vercel/static-build"
     }
   ],
   "routes": [
@@ -21,7 +17,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/api/index.py"
+      "dest": "teba/wsgi.py"
     }
   ]
 }
