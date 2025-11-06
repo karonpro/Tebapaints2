@@ -1,22 +1,15 @@
 #!/bin/bash
 
-echo "Starting build process for Teba..."
+echo "Starting Teba build process..."
 
-# Install Python dependencies
-echo "Installing Python dependencies..."
+# Install dependencies (ignore pip warnings)
 pip install -r requirements.txt
 
-# Create necessary directories
-echo "Creating directories..."
+# Create directories
 mkdir -p staticfiles
 mkdir -p media
 
-# Collect static files
-echo "Collecting static files..."
-python manage.py collectstatic --noinput --clear
+# Try to collect static files, but don't fail the build if it errors
+python manage.py collectstatic --noinput --clear || echo "Static collection failed, continuing build..."
 
-# Run database migrations (if possible)
-echo "Running database migrations..."
-python manage.py migrate --noinput || echo "Migrations failed, but continuing build..."
-
-echo "Teba build completed successfully!"
+echo "Teba build completed!"

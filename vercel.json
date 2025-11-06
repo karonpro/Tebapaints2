@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "teba/wsgi.py",
+      "src": "api/index.py",
       "use": "@vercel/python"
     },
     {
@@ -16,12 +16,12 @@
       "dest": "/static/$1"
     },
     {
-      "src": "/media/(.*)", 
+      "src": "/media/(.*)",
       "dest": "/media/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "teba/wsgi.py"
+      "dest": "/api/index.py"
     }
   ]
 }
