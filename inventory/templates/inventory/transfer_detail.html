@@ -1,0 +1,577 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Header Section -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white mb-1">
+                <i class="fas fa-exchange-alt me-2"></i>Transfer Details
+            </h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb text-muted mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}" class="text-muted">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'inventory:transfer_list' %}" class="text-muted">Transfers</a></li>
+                    <li class="breadcrumb-item active text-white">{{ batch.reference }}</li>
+                </ol>
+            </nav>
+        </div>
+        <div class="d-flex gap-2">
+            {% if batch.status == 'pending' %}
+                <a href="{% url 'inventory:confirm_transfer' batch.id %}" class="btn btn-success">
+                    <i class="fas fa-check-circle me-1"></i>Confirm Transfer
+                </a>
+                <a href="{% url 'inventory:cancel_transfer' batch.id %}" class="btn btn-danger">
+                    <i class="fas fa-times-circle me-1"></i>Cancel Transfer
+                </a>
+            {% endif %}
+            <a href="{% url 'inventory:transfer_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Back to Transfers
+            </a>
+        </div>
+    </div>
+
+    <!-- Status Alert -->
+    {% if batch.status == 'pending' %}
+        <div class="alert alert-warning">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-clock fa-2x me-3"></i>
+                <div>
+                    <h5 class="alert-heading mb-1">Transfer Pending</h5>
+                    <p class="mb-0">This transfer is waiting to be confirmed. Stock has not been moved yet.</p>
+                </div>
+            </div>
+        </div>
+    {% elif batch.status == 'confirmed' %}
+        <div class="alert alert-success">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-check-circle fa-2x me-3"></i>
+                <div>
+                    <h5 class="alert-heading mb-1">Transfer Completed</h5>
+                    <p class="mb-0">This transfer has been confirmed and stock has been updated.</p>
+                </div>
+            </div>
+        </div>
+    {% elif batch.status == 'cancelled' %}
+        <div class="alert alert-danger">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-times-circle fa-2x me-3"></i>
+                <div>
+                    <h5 class="alert-heading mb-1">Transfer Cancelled</h5>
+                    <p class="mb-0">This transfer has been cancelled.</p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- Transfer Information -->
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2"></i>Transfer Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td class="text-muted fw-semibold" width="40%">Reference:</td>
+                                    <td class="text-white">
+                                        <strong>{{ batch.reference }}</strong>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted fw-semibold">Status:</td>
+                                    <td>
+                                        {% if batch.status == 'pending' %}
+                                            <span class="badge bg-warning text-dark">
+                                                <i class="fas fa-clock me-1"></i>Pending
+                                            </span>
+                                        {% elif batch.status == 'confirmed' %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check-circle me-1"></i>Confirmed
+                                            </span>
+                                        {% elif batch.status == 'cancelled' %}
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-times-circle me-1"></i>Cancelled
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted fw-semibold">From Location:</td>
+                                    <td class="text-white">
+                                        <i class="fas fa-warehouse me-1 text-primary"></i>
+                                        {{ batch.from_location.name }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted fw-semibold">To Location:</td>
+                                    <td class="text-white">
+                                        <i class="fas fa-warehouse me-1 text-success"></i>
+                                        {{ batch.to_location.name }}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td class="text-muted fw-semibold" width="40%">Transfer Date:</td>
+                                    <td class="text-white">
+                                        <i class="fas fa-calendar me-1 text-info"></i>
+                                        {{ batch.transfer_date|date:"M j, Y H:i" }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted fw-semibold">Created By:</td>
+                                    <td class="text-white">
+                                        <i class="fas fa-user me-1 text-secondary"></i>
+                                        {{ batch.created_by.get_full_name|default:batch.created_by.username }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted fw-semibold">Created At:</td>
+                                    <td class="text-white">
+                                        <i class="fas fa-clock me-1 text-secondary"></i>
+                                        {{ batch.created_at|date:"M j, Y H:i" }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted fw-semibold">Total Items:</td>
+                                    <td class="text-white fw-bold">
+                                        {{ transfer_items|length }} product(s)
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    {% if batch.notes %}
+                    <div class="mt-3 p-3 bg-dark rounded">
+                        <h6 class="text-white mb-2">
+                            <i class="fas fa-sticky-note me-1"></i>Notes
+                        </h6>
+                        <p class="text-muted mb-0">{{ batch.notes }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Transfer Items -->
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-boxes me-2"></i>Transfer Items
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0">
+                            <thead class="table-light" style="background: #1e293b;">
+                                <tr>
+                                    <th class="ps-3">Product</th>
+                                    <th>SKU</th>
+                                    <th class="text-center">Quantity</th>
+                                    <th>Status</th>
+                                    <th class="text-center">Transferred By</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in transfer_items %}
+                                <tr>
+                                    <td class="ps-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="flex-shrink-0">
+                                                <i class="fas fa-box text-primary me-2"></i>
+                                            </div>
+                                            <div class="flex-grow-1 ms-2">
+                                                <strong class="text-white">{{ item.product.name }}</strong>
+                                                {% if item.product.category %}
+                                                    <br>
+                                                    <small class="text-muted">{{ item.product.category.name }}</small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <code class="text-info">{{ item.product.sku|default:"No SKU" }}</code>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary fs-6">{{ item.quantity }}</span>
+                                    </td>
+                                    <td>
+                                        {% if item.status == 'completed' %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check-circle me-1"></i>Completed
+                                            </span>
+                                        {% elif item.status == 'pending' %}
+                                            <span class="badge bg-warning text-dark">
+                                                <i class="fas fa-clock me-1"></i>Pending
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">
+                                                <i class="fas fa-question-circle me-1"></i>{{ item.status|title }}
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if item.transferred_by %}
+                                            <small class="text-muted">
+                                                {{ item.transferred_by.get_full_name|default:item.transferred_by.username }}
+                                            </small>
+                                        {% else %}
+                                            <small class="text-muted">-</small>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-4">
+                                        <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+                                        <h5 class="text-muted">No Items in Transfer</h5>
+                                        <p class="text-muted">This transfer doesn't contain any products.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            {% if transfer_items %}
+                            <tfoot class="table-light" style="background: #1e293b;">
+                                <tr>
+                                    <td colspan="2" class="text-end fw-bold text-white">Total Quantity:</td>
+                                    <td class="text-center fw-bold">
+                                        <span class="badge bg-success fs-6">
+                                            {{ transfer_items|length }} items, 
+                                            {{ transfer_items|length|default:0 }} total units
+                                        </span>
+                                    </td>
+                                    <td colspan="2"></td>
+                                </tr>
+                            </tfoot>
+                            {% endif %}
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar - Actions & Summary -->
+        <div class="col-lg-4">
+            <!-- Transfer Summary -->
+            <div class="card mb-4">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>Transfer Summary
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6 mb-3">
+                            <div class="p-3 bg-primary bg-opacity-10 rounded">
+                                <h3 class="text-primary mb-1">{{ transfer_items|length }}</h3>
+                                <small class="text-muted">Total Items</small>
+                            </div>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <div class="p-3 bg-success bg-opacity-10 rounded">
+                                <h3 class="text-success mb-1">
+                                    {% with total_quantity=transfer_items|length %}
+                                        {{ total_quantity }}
+                                    {% endwith %}
+                                </h3>
+                                <small class="text-muted">Total Units</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <h6 class="text-white mb-2">Transfer Timeline</h6>
+                        <div class="timeline">
+                            <div class="timeline-item {% if batch.created_at %}active{% endif %}">
+                                <div class="timeline-marker bg-primary"></div>
+                                <div class="timeline-content">
+                                    <small class="text-muted">Created</small>
+                                    <br>
+                                    <small class="text-white">{{ batch.created_at|date:"M j, Y H:i" }}</small>
+                                </div>
+                            </div>
+                            {% if batch.status == 'confirmed' %}
+                            <div class="timeline-item active">
+                                <div class="timeline-marker bg-success"></div>
+                                <div class="timeline-content">
+                                    <small class="text-muted">Confirmed</small>
+                                    <br>
+                                    <small class="text-white">{{ batch.updated_at|date:"M j, Y H:i" }}</small>
+                                </div>
+                            </div>
+                            {% elif batch.status == 'cancelled' %}
+                            <div class="timeline-item">
+                                <div class="timeline-marker bg-danger"></div>
+                                <div class="timeline-content">
+                                    <small class="text-muted">Cancelled</small>
+                                    <br>
+                                    <small class="text-white">{{ batch.updated_at|date:"M j, Y H:i" }}</small>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-bolt me-2"></i>Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% if batch.status == 'pending' %}
+                            <a href="{% url 'inventory:confirm_transfer' batch.id %}" class="btn btn-success btn-lg">
+                                <i class="fas fa-check-circle me-2"></i>Confirm Transfer
+                            </a>
+                            <a href="{% url 'inventory:cancel_transfer' batch.id %}" class="btn btn-danger btn-lg">
+                                <i class="fas fa-times-circle me-2"></i>Cancel Transfer
+                            </a>
+                        {% endif %}
+                        
+                        <a href="{% url 'inventory:transfer_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-list me-1"></i>View All Transfers
+                        </a>
+                        
+                        {% if batch.status == 'pending' %}
+                            <button type="button" class="btn btn-outline-info" onclick="window.print()">
+                                <i class="fas fa-print me-1"></i>Print Transfer
+                            </button>
+                        {% endif %}
+                    </div>
+
+                    {% if batch.status == 'pending' %}
+                    <div class="mt-3 p-3 bg-warning bg-opacity-10 rounded">
+                        <h6 class="text-warning mb-2">
+                            <i class="fas fa-exclamation-triangle me-1"></i>Pending Action Required
+                        </h6>
+                        <p class="text-muted small mb-0">
+                            This transfer is waiting to be confirmed. Stock will be moved from 
+                            <strong>{{ batch.from_location.name }}</strong> to 
+                            <strong>{{ batch.to_location.name }}</strong> when confirmed.
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Stock Impact -->
+            <div class="card mt-4">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-arrow-right-arrow-left me-2"></i>Stock Impact
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="p-2 bg-danger bg-opacity-10 rounded">
+                                <i class="fas fa-arrow-down text-danger fa-lg mb-2"></i>
+                                <h6 class="text-danger mb-1">Source</h6>
+                                <small class="text-muted">{{ batch.from_location.name }}</small>
+                                <div class="mt-1">
+                                    <small class="text-danger fw-bold">Stock Decrease</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-2 bg-success bg-opacity-10 rounded">
+                                <i class="fas fa-arrow-up text-success fa-lg mb-2"></i>
+                                <h6 class="text-success mb-1">Destination</h6>
+                                <small class="text-muted">{{ batch.to_location.name }}</small>
+                                <div class="mt-1">
+                                    <small class="text-success fw-bold">Stock Increase</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+:root {
+    --bg: #071029;
+    --card: #0e1622;
+    --muted: #cfd3ea;   /* made text much brighter */
+    --accent: #6366f1;
+    --accent2: #22d3ee;
+    --positive: #22c55e;
+    --negative: #ef4444;
+}
+
+body {
+    background: var(--bg);
+    color: var(--muted);
+    font-family: Inter, system-ui, Roboto;
+}
+
+.card {
+    background: var(--card);
+    color: var(--muted);
+    border-radius: 8px;
+    border: 1px solid #1e293b;
+}
+
+.card-header {
+    background: #1e293b !important;
+    border-bottom: 1px solid #374151;
+}
+
+.table {
+    color: var(--muted);
+    border-color: #374151;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.badge {
+    font-size: 0.75em;
+    padding: 0.5em 0.75em;
+}
+
+.breadcrumb {
+    background: transparent;
+    padding: 0;
+}
+
+.breadcrumb-item a {
+    text-decoration: none;
+}
+
+.breadcrumb-item.active {
+    color: rgb(56, 28, 28);
+}
+
+.alert {
+    border: none;
+    border-radius: 8px;
+}
+
+.alert-warning {
+    background: #451a03;
+    border-left: 4px solid #f59e0b;
+}
+
+.alert-success {
+    background: #052e16;
+    border-left: 4px solid var(--positive);
+}
+
+.alert-danger {
+    background: #450a0a;
+    border-left: 4px solid var(--negative);
+}
+
+.timeline {
+    position: relative;
+    padding-left: 20px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #374151;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 15px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -20px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--card);
+}
+
+.timeline-content {
+    margin-left: 0;
+}
+
+.timeline-item.active .timeline-marker {
+    box-shadow: 0 0 0 2px var(--card);
+}
+
+.bg-opacity-10 {
+    background-color: rgba(var(--bs-primary-rgb), 0.1) !important;
+}
+
+.btn {
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.1rem;
+}
+
+.text-primary { color: #4f46e5 !important; }
+.text-success { color: var(--positive) !important; }
+.text-danger { color: var(--negative) !important; }
+.text-warning { color: #f59e0b !important; }
+.text-info { color: #06b6d4 !important; }
+
+.bg-primary { background-color: #4f46e5 !important; }
+.bg-success { background-color: var(--positive) !important; }
+.bg-danger { background-color: var(--negative) !important; }
+.bg-warning { background-color: #f59e0b !important; }
+
+.fw-semibold {
+    font-weight: 600;
+}
+
+code {
+    background: #1e293b;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.875em;
+}
+
+/* Print Styles */
+@media print {
+    .btn, .breadcrumb, .alert {
+        display: none !important;
+    }
+    
+    .card {
+        border: 1px solid #000 !important;
+        background: rgb(255, 255, 255) !important;
+        color: black !important;
+    }
+    
+    .text-white, .text-muted, .text-primary {
+        color: black !important;
+    }
+}
+</style>
+{% endblock %}

@@ -696,3 +696,27 @@ def cleanup_verification(request):
     request.session.pop('verification_temp_data', None)
     messages.info(request, 'Verification session cleared. Please login again.')
     return redirect('account_login')   
+
+
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
+
+@require_http_methods(["GET"])
+def session_test(request):
+    """Simple endpoint to test session and keep it alive"""
+    return JsonResponse({
+        'status': 'success', 
+        'user': request.user.username if request.user.is_authenticated else 'anonymous',
+        'session_active': True
+    })
+
+@require_http_methods(["POST"])
+@csrf_exempt
+def session_keepalive(request):
+    """Endpoint to keep session alive - exempt from CSRF for simplicity"""
+    return JsonResponse({
+        'status': 'success', 
+        'message': 'Session kept alive',
+        'timestamp': timezone.now().isoformat()
+    })

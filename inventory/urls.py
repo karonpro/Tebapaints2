@@ -109,5 +109,26 @@ urlpatterns = [
     path('reports/customer-analysis/', views.customer_analysis_report, name='customer_analysis_report'),
     path('reports/stock-movement/', views.stock_movement_report, name='stock_movement_report'),
     path('reports/export/<str:report_type>/', views.export_report_csv, name='export_report_csv'),
+# Add this to your inventory/urls.py urlpatterns
+    path('api/customer-search/', views.customer_search_api, name='customer_search_api'),
+# Add these to your inventory/urls.py
 
+# Purchase Reports
+path('reports/purchase-summary/', views.purchase_summary_report, name='purchase_summary_report'),
+path('reports/supplier-analysis/', views.supplier_analysis_report, name='supplier_analysis_report'),
+path('reports/purchase-product-analysis/', views.purchase_product_analysis_report, name='purchase_product_analysis_report'),
+path('reports/purchase-trend-analysis/', views.purchase_trend_analysis_report, name='purchase_trend_analysis_report'),
+path('reports/export-purchase/<str:report_type>/', views.export_purchase_report, name='export_purchase_report'),
+# Add these to your inventory/urls.py
+
+# Transfer Reports
+path('reports/transfer-summary/', views.transfer_summary_report, name='transfer_summary_report'),
+path('reports/transfer-location-analysis/', views.transfer_location_analysis_report, name='transfer_location_analysis_report'),
+path('reports/transfer-product-analysis/', views.transfer_product_analysis_report, name='transfer_product_analysis_report'),
+path('reports/transfer-efficiency/', views.transfer_efficiency_report, name='transfer_efficiency_report'),
+path('reports/export-transfer/<str:report_type>/', views.export_transfer_report, name='export_transfer_report'),
+#  Product Movement Reports
+path('products/<int:product_id>/movement-report/', views.product_movement_report, name='product_movement_report'),
+path('products/<int:product_id>/movement-export/', views.product_movement_export, name='product_movement_export'),
 ] 
+

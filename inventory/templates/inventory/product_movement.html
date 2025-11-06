@@ -1,0 +1,261 @@
+<!-- templates/inventory/reports/product_movement.html -->
+{% extends 'inventory/base.html' %}
+{% load static %}
+
+{% block title %}Product Movement Report - {{ product.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">Product Movement Report</h1>
+            <h2 class="h5 text-muted">{{ product.name }} ({{ product.sku }})</h2>
+        </div>
+        <div>
+            <a href="{% url 'inventory:product_movement_export' product.id %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" 
+               class="btn btn-outline-primary">
+                <i class="fas fa-download"></i> Export CSV
+            </a>
+            <a href="{% url 'inventory:product_detail' product.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Product
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label for="date_from" class="form-label">From Date</label>
+                    <input type="date" class="form-control" id="date_from" name="date_from" value="{{ date_from }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="date_to" class="form-label">To Date</label>
+                    <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="location" class="form-label">Location</label>
+                    <select class="form-select" id="location" name="location">
+                        <option value="">All Locations</option>
+                        {% for location in locations %}
+                            <option value="{{ location.id }}" {% if location_id == location.id|stringformat:"i" %}selected{% endif %}>
+                                {{ location.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="type" class="form-label">Transaction Type</label>
+                    <select class="form-select" id="type" name="type">
+                        {% for type_value, type_label in transaction_types %}
+                            <option value="{{ type_value }}" {% if transaction_type == type_value %}selected{% endif %}>
+                                {{ type_label }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">Apply Filters</button>
+                    <a href="{% url 'inventory:product_movement_report' product.id %}" class="btn btn-outline-secondary">Clear Filters</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-2 col-md-4 col-6">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Opening Stock</h6>
+                    <h3 class="mb-0">{{ opening_stock }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-6">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Total In</h6>
+                    <h3 class="mb-0">{{ total_in }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-6">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Total Out</h6>
+                    <h3 class="mb-0">{{ total_out }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-6">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Net Movement</h6>
+                    <h3 class="mb-0">{{ net_movement }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-6">
+            <div class="card bg-dark text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Current Stock</h6>
+                    <h3 class="mb-0">{{ current_stock }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-6">
+            <div class="card bg-secondary text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Movements</h6>
+                    <h3 class="mb-0">{{ movements|length }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Movement Breakdown -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Movement Breakdown</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-2 col-6">
+                            <div class="border rounded p-3">
+                                <h6 class="text-muted">Purchases</h6>
+                                <h4 class="text-success">{{ movement_breakdown.purchases }}</h4>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-6">
+                            <div class="border rounded p-3">
+                                <h6 class="text-muted">Sales</h6>
+                                <h4 class="text-danger">{{ movement_breakdown.sales }}</h4>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-6">
+                            <div class="border rounded p-3">
+                                <h6 class="text-muted">Transfers In</h6>
+                                <h4 class="text-info">{{ movement_breakdown.transfers_in }}</h4>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-6">
+                            <div class="border rounded p-3">
+                                <h6 class="text-muted">Transfers Out</h6>
+                                <h4 class="text-warning">{{ movement_breakdown.transfers_out }}</h4>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-6">
+                            <div class="border rounded p-3">
+                                <h6 class="text-muted">Adjustments</h6>
+                                <h4 class="text-secondary">{{ movement_breakdown.adjustments }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Movements Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">Detailed Movement History</h5>
+        </div>
+        <div class="card-body">
+            {% if movements %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date & Time</th>
+                                <th>Type</th>
+                                <th>Reference</th>
+                                <th>Description</th>
+                                <th>Quantity</th>
+                                <th>In/Out</th>
+                                <th>Unit Price</th>
+                                <th>Total Value</th>
+                                <th>Location</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for movement in movements %}
+                                <tr>
+                                    <td>{{ movement.date|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        <span class="badge 
+                                            {% if movement.type == 'purchase' %}bg-success
+                                            {% elif movement.type == 'sale' %}bg-danger
+                                            {% elif movement.type == 'transfer_in' %}bg-info
+                                            {% elif movement.type == 'transfer_out' %}bg-warning
+                                            {% else %}bg-secondary{% endif %}">
+                                            {{ movement.type|title|replace:"_, " }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <code>{{ movement.reference }}</code>
+                                    </td>
+                                    <td>{{ movement.description }}</td>
+                                    <td>{{ movement.quantity }}</td>
+                                    <td>
+                                        <span class="badge {% if movement.in_out == 'in' %}bg-success{% else %}bg-danger{% endif %}">
+                                            {{ movement.in_out|upper }}
+                                        </span>
+                                    </td>
+                                    <td>UGX {{ movement.unit_price|floatformat:2 }}</td>
+                                    <td>UGX {{ movement.total_value|floatformat:2 }}</td>
+                                    <td>{{ movement.location.name }}</td>
+                                    <td>
+                                        {% if movement.type == 'purchase' %}
+                                            <a href="{% url 'inventory:purchase_detail' movement.related_object.id %}" 
+                                               class="btn btn-sm btn-outline-primary" title="View Purchase">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        {% elif movement.type == 'sale' %}
+                                            <a href="{% url 'inventory:print_sale' movement.related_object.id %}" 
+                                               class="btn btn-sm btn-outline-primary" title="View Sale">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        {% elif movement.type in 'transfer_in,transfer_out' %}
+                                            <a href="{% url 'inventory:transfer_detail' movement.related_object.id %}" 
+                                               class="btn btn-sm btn-outline-primary" title="View Transfer">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        {% elif movement.type == 'adjustment' %}
+                                            <a href="{% url 'inventory:stocktake_detail' movement.related_object.id %}" 
+                                               class="btn btn-sm btn-outline-primary" title="View Stocktake">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                    <h5>No movements found</h5>
+                    <p class="text-muted">No product movements match your current filters.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+</style>
+{% endblock %}

@@ -367,7 +367,46 @@
             padding: 2rem;
         }
 
-        /* Responsive Adjustments */
+        /* Enhanced loading states */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(7, 16, 41, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            backdrop-filter: blur(5px);
+        }
+
+        .loading-content {
+            text-align: center;
+            color: white;
+        }
+
+        .loading-spinner-lg {
+            width: 3rem;
+            height: 3rem;
+            border-width: 0.3em;
+        }
+
+        /* Skeleton loading for cards */
+        .skeleton-loader {
+            background: linear-gradient(90deg, var(--border) 25%, var(--card) 50%, var(--border) 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+            border-radius: 4px;
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Better mobile optimizations */
         @media (max-width: 768px) {
             body {
                 padding: 10px;
@@ -379,6 +418,42 @@
             
             .card {
                 margin-bottom: 1rem;
+            }
+
+            .navbar-nav .dropdown-menu {
+                position: static;
+                float: none;
+                width: 100%;
+                margin-top: 0;
+                border: 1px solid var(--border);
+                box-shadow: none;
+            }
+            
+            .card-header {
+                padding: 0.75rem 1rem;
+            }
+            
+            .btn-group .btn {
+                font-size: 0.875rem;
+                padding: 0.375rem 0.75rem;
+            }
+            
+            /* Stack tables on mobile */
+            .table-responsive table {
+                min-width: 600px; /* Allow horizontal scroll */
+            }
+        }
+
+        /* Touch device improvements */
+        @media (hover: none) and (pointer: coarse) {
+            .btn, .nav-link {
+                min-height: 44px; /* Better touch targets */
+                display: flex;
+                align-items: center;
+            }
+            
+            .dropdown-toggle::after {
+                margin-left: auto; /* Better alignment on mobile */
             }
         }
 
@@ -398,6 +473,53 @@
 
         ::-webkit-scrollbar-thumb:hover {
             background: var(--accent);
+        }
+
+        /* Report-specific styles */
+        .report-card {
+            border-left: 4px solid var(--accent);
+        }
+
+        .report-card.sales {
+            border-left-color: var(--positive);
+        }
+
+        .report-card.purchases {
+            border-left-color: var(--warning);
+        }
+
+        .report-card.transfers {
+            border-left-color: var(--accent2);
+        }
+
+        .report-card.inventory {
+            border-left-color: var(--negative);
+        }
+
+        .trend-up {
+            color: var(--positive);
+        }
+
+        .trend-down {
+            color: var(--negative);
+        }
+
+        .metric-card {
+            text-align: center;
+            padding: 1.5rem;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-label {
+            font-size: 0.875rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
     </style>
 </head>
@@ -481,32 +603,84 @@
                         </ul>
                     </li>
 
-                    <!-- Reports Mega Menu -->
+                    <!-- Reports Mega Menu - UPDATED WITH ALL REPORTS -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-chart-bar me-1"></i>Reports
                         </a>
-                        <ul class="dropdown-menu">
-                            <li><h6 class="dropdown-header text-info">Inventory Reports</h6></li>
-                            <li><a class="dropdown-item" href="{% url 'inventory:stock_report' %}">
-                                <i class="fas fa-boxes me-2"></i>Stock Report
-                            </a></li>
-                            <li><a class="dropdown-item" href="{% url 'inventory:sales_report' %}">
-                                <i class="fas fa-chart-line me-2"></i>Sales Report
-                            </a></li>
-                            
-                            <li><hr class="dropdown-divider"></li>
-                            <li><h6 class="dropdown-header text-warning">Advanced Analytics</h6></li>
+                        <ul class="dropdown-menu" style="min-width: 350px;">
+                            <!-- Reports Dashboard -->
                             <li><a class="dropdown-item" href="{% url 'inventory:reports_dashboard' %}">
                                 <i class="fas fa-analytics me-2"></i>Reports Dashboard
                             </a></li>
+                            <li><hr class="dropdown-divider"></li>
+
+                            <!-- Sales Reports -->
+                            <li><h6 class="dropdown-header text-success"><i class="fas fa-chart-line me-1"></i>Sales Reports</h6></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:sales_report' %}">
+                                <i class="fas fa-file-invoice-dollar me-2"></i>Sales Report
+                            </a></li>
                             <li><a class="dropdown-item" href="{% url 'inventory:sales_summary_report' %}">
-                                <i class="fas fa-file-invoice-dollar me-2"></i>Sales Summary
+                                <i class="fas fa-chart-bar me-2"></i>Sales Summary
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:customer_analysis_report' %}">
+                                <i class="fas fa-users me-2"></i>Customer Analysis
+                            </a></li>
+
+                            <!-- Purchase Reports -->
+                            <li><h6 class="dropdown-header text-warning"><i class="fas fa-shopping-cart me-1"></i>Purchase Reports</h6></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:purchase_summary_report' %}">
+                                <i class="fas fa-chart-pie me-2"></i>Purchase Summary
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:supplier_analysis_report' %}">
+                                <i class="fas fa-truck me-2"></i>Supplier Analysis
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:purchase_product_analysis_report' %}">
+                                <i class="fas fa-boxes me-2"></i>Purchase Product Analysis
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:purchase_trend_analysis_report' %}">
+                                <i class="fas fa-chart-line me-2"></i>Purchase Trend Analysis
+                            </a></li>
+
+                            <!-- Transfer Reports -->
+                            <li><h6 class="dropdown-header text-info"><i class="fas fa-exchange-alt me-1"></i>Transfer Reports</h6></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:transfer_summary_report' %}">
+                                <i class="fas fa-chart-bar me-2"></i>Transfer Summary
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:transfer_location_analysis_report' %}">
+                                <i class="fas fa-map-marker-alt me-2"></i>Location Analysis
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:transfer_product_analysis_report' %}">
+                                <i class="fas fa-boxes me-2"></i>Product Transfer Analysis
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:transfer_efficiency_report' %}">
+                                <i class="fas fa-tachometer-alt me-2"></i>Transfer Efficiency
+                            </a></li>
+
+                            <!-- Inventory & Product Reports -->
+                            <li><h6 class="dropdown-header text-primary"><i class="fas fa-boxes me-1"></i>Inventory Reports</h6></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:stock_report' %}">
+                                <i class="fas fa-cubes me-2"></i>Stock Report
                             </a></li>
                             <li><a class="dropdown-item" href="{% url 'inventory:product_performance_report' %}">
                                 <i class="fas fa-star me-2"></i>Product Performance
                             </a></li>
-                            
+                            <li><a class="dropdown-item" href="{% url 'inventory:inventory_valuation_report' %}">
+                                <i class="fas fa-dollar-sign me-2"></i>Inventory Valuation
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:stock_movement_report' %}">
+                                <i class="fas fa-arrows-alt-h me-2"></i>Stock Movement
+                            </a></li>
+
+                            <!-- Product Movement Reports -->
+                            <li><h6 class="dropdown-header text-danger"><i class="fas fa-history me-1"></i>Product Tracking</h6></li>
+                            {% if product_id %}
+                            <li><a class="dropdown-item" href="{% url 'inventory:product_movement_report' product_id %}">
+                                <i class="fas fa-search me-2"></i>Product Movement Report
+                            </a></li>
+                            {% endif %}
+
+                            <!-- Financial Reports -->
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{% url 'transactions:report_home' %}">
                                 <i class="fas fa-file-alt me-2"></i>Financial Reports
@@ -695,6 +869,16 @@
         <p class="mt-2 text-muted">Processing...</p>
     </div>
 
+    <!-- Enhanced Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-content">
+            <div class="spinner-border loading-spinner-lg text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3">Processing your request...</p>
+        </div>
+    </div>
+
     <!-- Session Timeout Warning Modal -->
     <div class="modal fade" id="sessionTimeoutModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog">
@@ -723,7 +907,7 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Global JavaScript -->
+    <!-- Global JavaScript - FIXED VERSION -->
     <script>
         // Global utility functions
         function showLoading() {
@@ -734,6 +918,14 @@
             document.getElementById('loadingSpinner').style.display = 'none';
         }
 
+        function showLoadingOverlay() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+        }
+
+        function hideLoadingOverlay() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+
         // Print functionality
         function printReport() {
             window.print();
@@ -741,43 +933,121 @@
 
         function printSection(sectionElement) {
             const section = sectionElement.closest('.printable-section');
-            const originalContent = document.body.innerHTML;
-            const sectionContent = section.outerHTML;
+            const printWindow = window.open('', '_blank');
             
-            document.body.innerHTML = `
+            const printContent = `
                 <!DOCTYPE html>
                 <html>
                 <head>
-                    <title>Print Section</title>
+                    <title>Teba Inventory - Print Report</title>
                     <style>
-                        body { font-family: Arial, sans-serif; margin: 20px; color: #000; }
-                        .card { border: 1px solid #000; margin-bottom: 15px; }
-                        .card-header { background-color: #f8f9fa; padding: 10px; border-bottom: 2px solid #000; font-weight: bold; }
-                        .table { width: 100%; border-collapse: collapse; }
-                        .table th, .table td { border: 1px solid #ddd; padding: 6px; text-align: left; }
-                        .table th { background-color: #f8f9fa; }
-                        @media print { .no-print { display: none; } }
+                        body { 
+                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                            margin: 20px; 
+                            color: #000; 
+                            line-height: 1.4;
+                        }
+                        .print-header {
+                            text-align: center;
+                            margin-bottom: 20px;
+                            padding-bottom: 15px;
+                            border-bottom: 2px solid #333;
+                        }
+                        .print-header h1 {
+                            color: #2c3e50;
+                            margin: 0;
+                            font-size: 24px;
+                        }
+                        .print-meta {
+                            color: #666;
+                            font-size: 12px;
+                            margin-top: 5px;
+                        }
+                        .card { 
+                            border: 1px solid #ddd; 
+                            margin-bottom: 20px; 
+                            border-radius: 4px;
+                            page-break-inside: avoid;
+                        }
+                        .card-header { 
+                            background-color: #f8f9fa; 
+                            padding: 12px 15px; 
+                            border-bottom: 1px solid #ddd; 
+                            font-weight: bold;
+                            font-size: 16px;
+                        }
+                        .card-body {
+                            padding: 15px;
+                        }
+                        .table { 
+                            width: 100%; 
+                            border-collapse: collapse; 
+                            font-size: 12px;
+                        }
+                        .table th, .table td { 
+                            border: 1px solid #ddd; 
+                            padding: 8px; 
+                            text-align: left; 
+                        }
+                        .table th { 
+                            background-color: #f8f9fa; 
+                            font-weight: 600;
+                        }
+                        .text-right { text-align: right; }
+                        .text-center { text-align: center; }
+                        .badge {
+                            padding: 4px 8px;
+                            border-radius: 3px;
+                            font-size: 11px;
+                            font-weight: 600;
+                        }
+                        .summary-row {
+                            background-color: #f8f9fa !important;
+                            font-weight: 600;
+                        }
+                        @media print { 
+                            .no-print { display: none; } 
+                            body { margin: 0.5in; }
+                            .card { break-inside: avoid; }
+                        }
+                        @page {
+                            size: auto;
+                            margin: 0.5in;
+                        }
                     </style>
                 </head>
                 <body>
-                    <div class="no-print" style="margin-bottom: 20px; text-align: center;">
-                        <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                            Print This Section
+                    <div class="print-header">
+                        <h1>Teba Paint Center</h1>
+                        <div class="print-meta">
+                            ${section.querySelector('.card-header')?.textContent || 'Report'} | 
+                            Generated: ${new Date().toLocaleString()} |
+                            User: {{ user.username }}
+                        </div>
+                    </div>
+                    ${section.innerHTML}
+                    <div class="no-print" style="margin-top: 30px; text-align: center;">
+                        <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px;">
+                            🖨️ Print Report
                         </button>
-                        <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;">
-                            Close
+                        <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px;">
+                            ❌ Close
                         </button>
                     </div>
-                    ${sectionContent}
                 </body>
                 </html>
             `;
             
-            window.print();
-            document.body.innerHTML = originalContent;
+            printWindow.document.write(printContent);
+            printWindow.document.close();
+            
+            // Auto-print after a short delay
+            setTimeout(() => {
+                printWindow.print();
+            }, 500);
         }
 
-        // Session timeout management
+        // Session timeout management - SIMPLIFIED VERSION
         let timeoutWarning;
         let timeoutLogout;
         const warningTime = 2 * 60 * 1000; // 2 minutes warning
@@ -847,19 +1117,90 @@
 
         function resetSessionTimers() {
             startSessionTimers();
+        }
+
+        function getCSRFToken() {
+            return document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                   document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+        }
+
+        // Better active navigation highlighting
+        function highlightActiveNav() {
+            const currentPath = window.location.pathname;
+            const navLinks = document.querySelectorAll('.nav-link');
             
-            // Send keep-alive request to server
-            fetch('{% url "core:session_test" %}', {
-                method: 'GET',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                // Exact match
+                if (href === currentPath) {
+                    link.classList.add('active');
                 }
-            }).catch(error => console.log('Keep-alive request failed'));
+                // Parent path match (for nested pages)
+                else if (currentPath.startsWith(href) && href !== '/') {
+                    link.classList.add('active');
+                } else {
+                    link.classList.remove('active');
+                }
+            });
+            
+            // Also highlight parent dropdowns
+            document.querySelectorAll('.dropdown-menu .active').forEach(activeItem => {
+                const parentDropdown = activeItem.closest('.dropdown');
+                if (parentDropdown) {
+                    const dropdownToggle = parentDropdown.querySelector('.dropdown-toggle');
+                    dropdownToggle?.classList.add('active');
+                }
+            });
+        }
+
+        // Global error handling
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e.error);
+            showNotification('A system error occurred. Please refresh the page.', 'danger');
+        });
+
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('Unhandled promise rejection:', e.reason);
+            showNotification('An unexpected error occurred.', 'warning');
+        });
+
+        // Enhanced form handling
+        document.addEventListener('submit', function(e) {
+            const form = e.target;
+            
+            // Add loading state to submit button
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn && !form.classList.contains('no-loading')) {
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+                submitBtn.disabled = true;
+                
+                // Revert on form completion
+                setTimeout(() => {
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                }, 3000);
+            }
+        });
+
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
         }
 
         // Auto-dismiss alerts after 5 seconds
         document.addEventListener('DOMContentLoaded', function() {
-            // Auto-dismiss alerts
+            // Initialize all enhancements
+            highlightActiveNav();
+            
+            // Your existing initialization code...
             setTimeout(function() {
                 const alerts = document.querySelectorAll('.alert');
                 alerts.forEach(function(alert) {
@@ -867,20 +1208,6 @@
                     bsAlert.close();
                 });
             }, 5000);
-
-            // Add active class to current page in navigation
-            const currentPath = window.location.pathname;
-            document.querySelectorAll('.nav-link').forEach(link => {
-                if (link.getAttribute('href') === currentPath) {
-                    link.classList.add('active');
-                }
-            });
-
-            // Initialize tooltips
-            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
-            });
 
             // Add print buttons to printable sections
             const printableSections = document.querySelectorAll('.printable-section');
@@ -919,6 +1246,7 @@
         document.addEventListener('ajaxError', function(event) {
             showNotification('An error occurred while processing your request.', 'danger');
             hideLoading();
+            hideLoadingOverlay();
         });
 
         // Notification function
@@ -937,6 +1265,25 @@
                 const bsAlert = new bootstrap.Alert(alertDiv);
                 bsAlert.close();
             }, 5000);
+        }
+
+        // Report-specific utility functions
+        function exportReport(url, format = 'csv') {
+            showLoadingOverlay();
+            window.location.href = url + (url.includes('?') ? '&' : '?') + 'format=' + format;
+            setTimeout(hideLoadingOverlay, 2000);
+        }
+
+        function generateChart(canvasId, chartData) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            return new Chart(ctx, chartData);
+        }
+
+        // Quick filter apply for reports
+        function applyQuickFilter(filterType, value) {
+            const url = new URL(window.location.href);
+            url.searchParams.set(filterType, value);
+            window.location.href = url.toString();
         }
     </script>
 

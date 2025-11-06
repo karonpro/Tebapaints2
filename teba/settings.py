@@ -25,12 +25,18 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key')
 DEBUG = True  # Set to False in production
 
 # Allowed hosts for deployment
+DEBUG = True
 ALLOWED_HOSTS = [
-    '127.0.0.1',               # local dev
-    'localhost',               # local dev
-    '0.0.0.0',                 # sometimes used locally
-    'system-teba.onrender.com',  # Render production domain
+    '.vercel.app',
+    '.now.sh',
+    'localhost',
+    '127.0.0.1',
+    '.teba.vercel.app'  # Your custom domain if you have one
 ]
+
+
+
+
 
 # =======================
 # APPLICATION DEFINITION
@@ -115,14 +121,16 @@ WSGI_APPLICATION = 'teba.wsgi.application'
 # =======================
 
 import dj_database_url
+import os
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        default=os.getenv('DATABASE_URL', f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
         conn_max_age=600,
         ssl_require=not DEBUG,
     )
 }
+
 
 # =======================
 # PASSWORD VALIDATION
@@ -144,10 +152,9 @@ USE_TZ = True
 # =======================
 # STATIC FILES
 # =======================
-
 STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / "staticfiles"  # WhiteNoise collects static files here
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 
 # =======================
 # AUTHENTICATION BACKENDS
@@ -170,7 +177,7 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_SECURE = False
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
-
+SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
 # =======================
 # CSRF CONFIGURATION
 # =======================
@@ -184,7 +191,15 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://0.0.0.0:8000',
     'https://system-teba.onrender.com',
+    'https://teba.fly.dev',
+    'https://teba-git-main-karonpros-projects.vercel.app',  # Vercel
+    'https://*.vercel.app',
+    'https://*.now.sh',
 ]
+
+
+
+
 
 # =======================
 # SECURITY SETTINGS
@@ -257,9 +272,16 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 # =======================
 # SITE INFORMATION
 # =======================
+import os
 
 SITE_NAME = "Teba System"
-SITE_DOMAIN = "system-teba.onrender.com"
+
+# Detect if running on Vercel via environment variable
+if os.getenv("VERCEL"):  
+    SITE_DOMAIN = "https://teba-git-main-karonpros-projects.vercel.app/"
+else:
+    SITE_DOMAIN = "http://127.0.0.1:8000/"
+
 
 ADMINS = [('Admin', os.getenv('ADMIN_EMAIL', 'tebaspprt@gmail.com'))]
 MANAGERS = ADMINS

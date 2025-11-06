@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "teba/wsgi.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "build_files.sh",
+      "use": "@vercel/static-build"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/media/(.*)", 
+      "dest": "/media/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "teba/wsgi.py"
+    }
+  ]
+}

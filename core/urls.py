@@ -12,7 +12,8 @@ urlpatterns = [
     path('users/<int:user_id>/', views.user_detail, name='user_detail'),
     path('users/<int:user_id>/edit/', views.user_edit, name='user_edit'),
     path('users/<int:user_id>/toggle-active/', views.user_toggle_active, name='user_toggle_active'),
-    
+    path('session-test/', views.session_test, name='session_test'),
+    path('session-keepalive/', views.session_keepalive, name='session_keepalive'),
     # Profile & Email Verification
     path('profile/', views.profile_view, name='profile'),
     path('verify-email/', views.verify_email, name='verify_email'),

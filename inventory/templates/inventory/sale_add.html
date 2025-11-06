@@ -1,494 +1,1062 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-white">Create New Sale</h2>
+        <a href="{% url 'inventory:sale_list' %}" class="btn btn-outline-secondary">
+            ← Back to Sales
+        </a>
+    </div>
+
+    <!-- Display messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header" style="background: #1e293b; border-bottom: 1px solid #374151;">
+            <h5 class="card-title mb-0 text-white">Sale Information</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" id="saleForm">
+                {% csrf_token %}
+                
+                <!-- Location Selection (from core app) -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Location *</label>
+                            {% if locations %}
+                                <select name="location" class="form-select" id="id_location" required onchange="updateAllStockInfo()">
+                                    <option value="">Select Location</option>
+                                    {% for location in locations %}
+                                        <option value="{{ location.id }}" {% if form.location.value == location.id %}selected{% endif %}>
+                                            {{ location.name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text text-muted">Select location to check stock availability</div>
+                            {% else %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    No locations available. Please contact administrator.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Customer (from Transactions)</label>
+                            <select name="customer" class="form-select" id="id_customer">
+                                <option value="">Select Customer</option>
+                                {% for customer in customers %}
+                                    <option value="{{ customer.id }}" {% if form.customer.value == customer.id %}selected{% endif %}>
+                                        {{ customer.name }} 
+                                        {% if customer.phone %}- {{ customer.phone }}{% endif %}
+                                        {% if customer.balance > 0 %}[Balance: UGX {{ customer.balance|floatformat:0 }}]{% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text text-muted">Customer from transactions system</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Document Type & Currency -->
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Document Type *</label>
+                            <select name="document_type" class="form-select" id="id_document_type" onchange="handleDocumentTypeChange()">
+                                {% for value, label in document_types %}
+                                    <option value="{{ value }}" {% if form.document_type.value == value %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text text-muted" id="documentTypeHelp">
+                                Select document type - receipt will auto-fill paid amount
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Currency</label>
+                            <select name="currency" class="form-select" id="id_currency">
+                                {% for value, label in currencies %}
+                                    <option value="{{ value }}" {% if form.currency.value == value %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Payment Status</label>
+                            <input type="text" id="paymentStatus" class="form-control" readonly value="{% if locations %}Select Location First{% else %}No Locations Available{% endif %}">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Date & Paid Amount -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Sale Date *</label>
+                            <input type="datetime-local" name="date" class="form-control" 
+                                   value="{{ default_date }}" required id="saleDate">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Paid Amount (UGX)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">UGX</span>
+                                <input type="number" name="paid_amount" class="form-control" 
+                                       id="id_paid_amount" step="100" min="0" value="{{ form.paid_amount.value|default:0 }}"
+                                       onchange="updatePaymentStatus()">
+                            </div>
+                            <div class="form-text text-muted" id="paidAmountHelp">
+                                Amount already paid by customer
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Products Section -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="text-white">Products</h5>
+                        {% if locations %}
+                            <button type="button" class="btn btn-primary" id="addProductBtn" {% if not locations %}disabled{% endif %}>
+                                <i class="fas fa-plus"></i> Add Product
+                            </button>
+                        {% else %}
+                            <button type="button" class="btn btn-secondary" disabled>
+                                <i class="fas fa-exclamation-triangle"></i> No Locations Available
+                            </button>
+                        {% endif %}
+                    </div>
+
+                    <!-- Stock Warning Alert -->
+                    <div class="alert alert-warning" id="stockWarning" style="display: none;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span id="stockWarningText"></span>
+                    </div>
+
+                    <!-- Products Table -->
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover" id="productsTable">
+                            <thead class="table-light" style="background: #1e293b; color: var(--muted);">
+                                <tr>
+                                    <th width="30%">Product</th>
+                                    <th width="15%">Available Stock</th>
+                                    <th width="15%">Quantity</th>
+                                    <th width="20%">Unit Price (UGX)</th>
+                                    <th width="15%">Total (UGX)</th>
+                                    <th width="5%" class="text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsTableBody">
+                                <!-- Product rows will be added here dynamically -->
+                            </tbody>
+                            <tfoot class="table-light" style="background: #1e293b; color: var(--muted);">
+                                <tr>
+                                    <td colspan="4" class="text-end fw-bold">Grand Total:</td>
+                                    <td colspan="2" class="fw-bold text-success">
+                                        UGX <span id="grandTotal">0</span>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Hidden field for products data -->
+                <input type="hidden" name="items_data" id="itemsData" value="[]">
+
+                <!-- Notes -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <label for="id_notes" class="form-label">Notes</label>
+                        <textarea name="notes" class="form-control" id="id_notes" rows="3" placeholder="Any additional notes...">{{ form.notes.value|default:'' }}</textarea>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" name="save_draft" class="btn btn-outline-warning" {% if not locations %}disabled{% endif %}>
+                        <i class="fas fa-save"></i> Save Draft
+                    </button>
+                    <button type="submit" name="save_sent" class="btn btn-success" {% if not locations %}disabled{% endif %}>
+                        <i class="fas fa-paper-plane"></i> Create Sale
+                    </button>
+                    <button type="button" class="btn btn-outline-info" onclick="saveAndPrint()" {% if not locations %}disabled{% endif %}>
+                        <i class="fas fa-print"></i> Save & Print
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="resetButton" {% if not locations %}disabled{% endif %}>
+                        <i class="fas fa-undo"></i> Reset
+                    </button>
+                    <a href="{% url 'inventory:sale_list' %}" class="btn btn-outline-danger">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Use CDN for reliability -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
 <script>
-$(document).ready(function() {
-    console.log('Document ready - initializing sale form');
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Sale form initialized');
+    console.log('Locations available:', {{ locations|length }});
+    console.log('Customers available:', {{ customers|length }});
     
-    // Initialize select2 for existing form fields
-    $('.select2').select2({
-        placeholder: "Select an option",
-        allowClear: true
-    });
-
     let rowCounter = 0;
-    let allLocations = [];
+    let currentLocationId = null;
+    const productsTableBody = document.getElementById('productsTableBody');
+    const addProductBtn = document.getElementById('addProductBtn');
+    const saleForm = document.getElementById('saleForm');
+    const itemsData = document.getElementById('itemsData');
+    const grandTotal = document.getElementById('grandTotal');
+    const paidAmountInput = document.getElementById('id_paid_amount');
+    const paymentStatus = document.getElementById('paymentStatus');
+    const stockWarning = document.getElementById('stockWarning');
+    const stockWarningText = document.getElementById('stockWarningText');
+    const locationSelect = document.getElementById('id_location');
+    const documentTypeSelect = document.getElementById('id_document_type');
+    const paidAmountHelp = document.getElementById('paidAmountHelp');
+    const documentTypeHelp = document.getElementById('documentTypeHelp');
+
+    // Check if locations are available
+    const locationsAvailable = {{ locations|length }} > 0;
     
-    // Store product prices in localStorage
-    let productPrices = JSON.parse(localStorage.getItem('productPrices') || '{}');
-
-    // Load locations for transfer suggestions
-    function loadLocations() {
-        $('#id_location option').each(function() {
-            if ($(this).val()) {
-                allLocations.push({
-                    id: $(this).val(),
-                    name: $(this).text()
-                });
-            }
-        });
+    if (!locationsAvailable) {
+        console.error('No locations available for this user');
+        paymentStatus.value = 'No Locations Available';
+        paymentStatus.className = 'form-control bg-danger text-white';
+        return;
     }
 
-    loadLocations();
+    // Format UGX currency
+    function formatUGX(amount) {
+        return new Intl.NumberFormat('en-UG', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(amount);
+    }
 
-    function updatePaymentStatus() {
-        let paidAmount = parseFloat($('#id_paid_amount').val()) || 0;
-        let grandTotal = parseFloat($('#grandTotal').text()) || 0;
-        let paymentStatus = $('#paymentStatus');
+    // Parse UGX currency (remove formatting)
+    function parseUGX(ugxString) {
+        return parseFloat(ugxString.replace(/[^\d.-]/g, '')) || 0;
+    }
+
+    // Handle document type change
+    function handleDocumentTypeChange() {
+        const documentType = documentTypeSelect.value;
+        const totalAmount = parseUGX(grandTotal.textContent);
         
-        if (grandTotal === 0) {
-            paymentStatus.val('Add Products First')
-                .removeClass('bg-success bg-warning bg-danger')
-                .addClass('bg-secondary text-white');
-            return;
-        }
-        
-        if (paidAmount >= grandTotal && grandTotal > 0) {
-            paymentStatus.val('Fully Paid')
-                .removeClass('bg-warning bg-danger bg-secondary')
-                .addClass('bg-success text-white');
-        } else if (paidAmount > 0 && grandTotal > 0) {
-            paymentStatus.val('Partially Paid')
-                .removeClass('bg-success bg-danger bg-secondary')
-                .addClass('bg-warning text-dark');
+        if (documentType === 'receipt' && totalAmount > 0) {
+            // For receipts, auto-fill paid amount with grand total
+            paidAmountInput.value = totalAmount;
+            paidAmountHelp.innerHTML = '<i class="fas fa-info-circle text-info"></i> Paid amount auto-filled for receipt';
+            paidAmountHelp.className = 'form-text text-info';
         } else {
-            paymentStatus.val('Not Paid')
-                .removeClass('bg-success bg-warning bg-secondary')
-                .addClass('bg-danger text-white');
+            // For other document types, reset to 0 or keep current value
+            if (paidAmountInput.value == totalAmount) {
+                paidAmountInput.value = '0';
+            }
+            paidAmountHelp.innerHTML = 'Amount already paid by customer';
+            paidAmountHelp.className = 'form-text text-muted';
         }
-    }
-
-    function recalcRow(row) {
-        let qty = parseFloat(row.find('.qty').val()) || 0;
-        let price = parseFloat(row.find('.unit_price').val()) || 0;
-        let total = qty * price;
-        row.find('.total').val(total.toFixed(2));
-        recalcGrandTotal();
-        recalcItemsData();
         
-        // Update stock display when recalculating
-        updateStockDisplay(row);
-        
-        // Save price when it changes
-        let productId = row.find('.product_select').val();
-        if (productId && price > 0) {
-            saveProductPrice(productId, price);
-        }
-    }
-
-    function recalcGrandTotal() {
-        let grand = 0;
-        $('#productsTable tbody tr').each(function() {
-            let total = parseFloat($(this).find('.total').val()) || 0;
-            grand += total;
-        });
-        $('#grandTotal').text(grand.toFixed(2));
-        
-        $('#id_paid_amount').attr('max', grand.toFixed(2));
-        let currentPaid = parseFloat($('#id_paid_amount').val()) || 0;
-        if (currentPaid > grand) {
-            $('#id_paid_amount').val(grand.toFixed(2));
-        }
         updatePaymentStatus();
     }
 
-    function recalcItemsData() {
-        let items = [];
-        $('#productsTable tbody tr').each(function() {
-            let row = $(this);
-            let product_id = row.find('.product_select').val();
-            if(product_id) {
-                items.push({
-                    product_id: parseInt(product_id),
-                    unit_price: parseFloat(row.find('.unit_price').val()),
-                    quantity: parseFloat(row.find('.qty').val()),
-                    total: parseFloat(row.find('.total').val())
-                });
-            }
-        });
-        $('#id_items_data').val(JSON.stringify(items));
-    }
-
-    // SAVE PRODUCT PRICE TO LOCALSTORAGE
-    function saveProductPrice(productId, price) {
-        productPrices[productId] = price;
-        localStorage.setItem('productPrices', JSON.stringify(productPrices));
-        console.log('Saved price for product', productId, ':', price);
-    }
-
-    // GET SAVED PRODUCT PRICE
-    function getSavedPrice(productId) {
-        return productPrices[productId] || null;
-    }
-
-    // CHECK STOCK AVAILABILITY FOR SPECIFIC LOCATION
-    function checkStockAvailability(productId, locationId, callback) {
-        if (productId && locationId) {
-            $.getJSON(`/inventory/api/stock/${productId}/${locationId}/`, function(data) {
-                if (data.quantity !== undefined) {
-                    callback(data.quantity);
-                } else {
-                    callback(0);
-                }
-            }).fail(function() {
-                callback(0);
-            });
+    // Update payment status
+    function updatePaymentStatus() {
+        const paidAmount = parseFloat(paidAmountInput.value) || 0;
+        const totalAmount = parseUGX(grandTotal.textContent);
+        const documentType = documentTypeSelect.value;
+        
+        if (!currentLocationId) {
+            paymentStatus.value = 'Select Location First';
+            paymentStatus.className = 'form-control bg-secondary text-white';
+        } else if (totalAmount === 0) {
+            paymentStatus.value = 'Add Products First';
+            paymentStatus.className = 'form-control bg-secondary text-white';
+        } else if (documentType === 'receipt' && paidAmount < totalAmount) {
+            paymentStatus.value = 'Receipt Not Fully Paid';
+            paymentStatus.className = 'form-control bg-warning text-dark';
+        } else if (documentType === 'receipt' && paidAmount >= totalAmount) {
+            paymentStatus.value = 'Receipt Fully Paid';
+            paymentStatus.className = 'form-control bg-success text-white';
+        } else if (paidAmount >= totalAmount) {
+            paymentStatus.value = 'Fully Paid';
+            paymentStatus.className = 'form-control bg-success text-white';
+        } else if (paidAmount > 0) {
+            paymentStatus.value = 'Partially Paid';
+            paymentStatus.className = 'form-control bg-warning text-dark';
         } else {
-            callback(0);
+            paymentStatus.value = 'Not Paid';
+            paymentStatus.className = 'form-control bg-danger text-white';
         }
     }
 
-    // CHECK STOCK IN OTHER LOCATIONS FOR TRANSFER SUGGESTIONS
-    function checkOtherLocationsStock(productId, currentLocationId, callback) {
-        let locationsWithStock = [];
-        let checkedLocations = 0;
+    // Get stock for a product at current location
+    async function getProductStock(productId) {
+        if (!currentLocationId) return 0;
         
-        allLocations.forEach(function(location) {
-            if (location.id !== currentLocationId) {
-                checkStockAvailability(productId, location.id, function(stockQty) {
-                    if (stockQty > 0) {
-                        locationsWithStock.push({
-                            location: location,
-                            stock: stockQty
-                        });
-                    }
-                    checkedLocations++;
-                    
-                    if (checkedLocations === allLocations.length - 1) {
-                        callback(locationsWithStock);
-                    }
-                });
-            } else {
-                checkedLocations++;
+        try {
+            const response = await fetch(`/inventory/api/stock/${productId}/${currentLocationId}/`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
-        });
-    }
-
-    // UPDATE STOCK DISPLAY
-    function updateStockDisplay(row) {
-        let productId = row.find('.product_select').val();
-        let locationId = $('#id_location').val();
-        let quantity = parseFloat(row.find('.qty').val()) || 0;
-        let stockDisplay = row.find('.stock-display');
-        
-        if (productId && locationId) {
-            checkStockAvailability(productId, locationId, function(availableStock) {
-                let displayHtml = '';
-                
-                if (availableStock === 0) {
-                    displayHtml = '<div class="stock-warning">';
-                    displayHtml += '<i class="fas fa-exclamation-triangle"></i> 0';
-                    displayHtml += '</div>';
-                    
-                    row.addClass('low-stock');
-                    
-                    // Check other locations for transfer suggestions
-                    checkOtherLocationsStock(productId, locationId, function(locationsWithStock) {
-                        if (locationsWithStock.length > 0) {
-                            let suggestionHtml = '<div class="transfer-suggestion mt-1">';
-                            suggestionHtml += '<strong>Available in:</strong><br>';
-                            locationsWithStock.forEach(function(loc) {
-                                suggestionHtml += `• ${loc.location.name}: ${loc.stock}<br>`;
-                            });
-                            suggestionHtml += '<span class="transfer-link" onclick="openTransferModal(' + productId + ')">';
-                            suggestionHtml += '<i class="fas fa-exchange-alt"></i> Transfer stock';
-                            suggestionHtml += '</span>';
-                            suggestionHtml += '</div>';
-                            
-                            stockDisplay.append(suggestionHtml);
-                        }
-                    });
-                    
-                } else if (availableStock < quantity) {
-                    displayHtml = '<div class="stock-warning">';
-                    displayHtml += `<i class="fas fa-exclamation-triangle"></i> ${availableStock}`;
-                    displayHtml += '</div>';
-                    row.addClass('low-stock');
-                    
-                } else {
-                    displayHtml = '<div class="stock-ok">';
-                    displayHtml += `<i class="fas fa-check-circle"></i> ${availableStock}`;
-                    displayHtml += '</div>';
-                    row.removeClass('low-stock');
-                }
-                
-                stockDisplay.html(displayHtml);
-            });
-        } else {
-            stockDisplay.html('<div class="stock-info">-</div>');
-            row.removeClass('low-stock');
+            const data = await response.json();
+            return data.quantity || 0;
+        } catch (error) {
+            console.error('Error fetching stock:', error);
+            return 0;
         }
     }
 
-    // FUNCTION TO INITIALIZE SELECT2 WITH AJAX SEARCH AND PRICE MEMORY
-    function initializeProductSelect(selectElement) {
-        selectElement.select2({
-            placeholder: "Search for a product by name or SKU...",
-            allowClear: true,
-            minimumInputLength: 2,
-            ajax: {
-                url: "{% url 'inventory:product_search_api' %}",
-                dataType: 'json',
-                delay: 250,
-                data: function (params) {
-                    return {
-                        q: params.term,
-                        page: params.page
-                    };
-                },
-                processResults: function (data, params) {
-                    params.page = params.page || 1;
-                    return {
-                        results: data.products.map(function(product) {
-                            // Check if we have a saved price for this product
-                            let savedPrice = getSavedPrice(product.id);
-                            let priceInfo = savedPrice ? 
-                                ` - Last: $${savedPrice}` : 
-                                ` - Price: $${product.selling_price}`;
-                            
-                            return {
-                                id: product.id,
-                                text: product.name + ' (' + product.sku + ')' + priceInfo,
-                                selling_price: product.selling_price,
-                                saved_price: savedPrice
-                            };
-                        }),
-                        pagination: {
-                            more: false
-                        }
-                    };
-                },
-                cache: true
-            },
-            templateResult: function(product) {
-                if (product.loading) {
-                    return product.text;
+    // Update stock information for all rows
+    async function updateAllStockInfo() {
+        currentLocationId = locationSelect ? locationSelect.value : null;
+        
+        if (!currentLocationId) {
+            // Disable add product button
+            if (addProductBtn) {
+                addProductBtn.disabled = true;
+                addProductBtn.innerHTML = '<i class="fas fa-plus"></i> Add Product (Select Location First)';
+                addProductBtn.className = 'btn btn-secondary';
+            }
+            
+            // Clear all stock info
+            document.querySelectorAll('.stock-info').forEach(el => {
+                el.textContent = 'Select Location';
+                el.className = 'stock-info text-muted';
+            });
+            
+            if (stockWarning) stockWarning.style.display = 'none';
+            updatePaymentStatus();
+            return;
+        }
+        
+        // Enable add product button
+        if (addProductBtn) {
+            addProductBtn.disabled = false;
+            addProductBtn.innerHTML = '<i class="fas fa-plus"></i> Add Product';
+            addProductBtn.className = 'btn btn-primary';
+        }
+        
+        // Update stock for each product row
+        let lowStockCount = 0;
+        let outOfStockCount = 0;
+        
+        const rows = document.querySelectorAll('.product-row');
+        for (const row of rows) {
+            const productSelect = row.querySelector('.product-select');
+            const productId = productSelect.value;
+            const stockInfo = row.querySelector('.stock-info');
+            const quantityInput = row.querySelector('.quantity');
+            
+            if (productId) {
+                const stock = await getProductStock(productId);
+                stockInfo.textContent = stock;
+                
+                // Update styling based on stock
+                if (stock === 0) {
+                    stockInfo.className = 'stock-info text-danger fw-bold';
+                    outOfStockCount++;
+                } else if (stock < parseInt(quantityInput.value || 1)) {
+                    stockInfo.className = 'stock-info text-warning fw-bold';
+                    lowStockCount++;
+                } else {
+                    stockInfo.className = 'stock-info text-success';
                 }
                 
-                var $container = $(
-                    '<div class="product-option">' +
-                        '<div class="product-name"><strong>' + product.text + '</strong></div>' +
-                    '</div>'
-                );
-                
-                return $container;
-            },
-            templateSelection: function(product) {
-                return product.text || product.name || "Select a product...";
+                // Show warning if quantity exceeds stock
+                const quantity = parseInt(quantityInput.value) || 0;
+                if (quantity > stock) {
+                    row.style.backgroundColor = '#450a0a';
+                    showStockWarning(`Quantity exceeds available stock for ${productSelect.options[productSelect.selectedIndex].text}`);
+                } else {
+                    row.style.backgroundColor = '';
+                }
             }
-        });
+        }
+        
+        // Show overall stock warning
+        if (outOfStockCount > 0 || lowStockCount > 0) {
+            let warningMsg = '';
+            if (outOfStockCount > 0) {
+                warningMsg += `${outOfStockCount} product(s) out of stock. `;
+            }
+            if (lowStockCount > 0) {
+                warningMsg += `${lowStockCount} product(s) have low stock.`;
+            }
+            showStockWarning(warningMsg);
+        } else {
+            hideStockWarning();
+        }
+        
+        updatePaymentStatus();
     }
 
+    // Show stock warning
+    function showStockWarning(message) {
+        if (stockWarningText && stockWarning) {
+            stockWarningText.textContent = message;
+            stockWarning.style.display = 'block';
+        }
+    }
+
+    // Hide stock warning
+    function hideStockWarning() {
+        if (stockWarning) {
+            stockWarning.style.display = 'none';
+        }
+    }
+
+    // Create a new product row
     function createProductRow() {
         rowCounter++;
-        let row = $('<tr class="product-row">').attr('data-row-id', rowCounter);
+        const rowId = `row-${rowCounter}`;
         
-        // Product select cell
-        let productCell = $('<td>');
-        let productSelect = $('<select class="form-select product_select" data-row="' + rowCounter + '">')
-            .append('<option value=""></option>');
-        productCell.append(productSelect);
+        const row = document.createElement('tr');
+        row.className = 'product-row';
+        row.id = rowId;
         
-        // Stock Available cell
-        let stockCell = $('<td class="stock-display">');
-        stockCell.html('<div class="stock-info">-</div>');
-        
-        // Quantity cell
-        let qtyCell = $('<td>');
-        let qtyInput = $('<input type="number" class="form-control qty" step="1" value="1" min="1">');
-        qtyCell.append(qtyInput);
-        
-        // Unit Price cell
-        let priceCell = $('<td>');
-        let priceInput = $('<input type="number" class="form-control unit_price" step="0.01" min="0" placeholder="0.00">');
-        priceCell.append(priceInput);
-        
-        // Total cell
-        let totalCell = $('<td>');
-        let totalInput = $('<input type="number" class="form-control total" step="0.01" readonly placeholder="0.00">');
-        totalCell.append(totalInput);
-        
-        // Action cell
-        let actionCell = $('<td>');
-        let removeBtn = $('<button type="button" class="btn btn-danger btn-sm removeRow">')
-            .html('<i class="fas fa-trash"></i>');
-        actionCell.append(removeBtn);
-        
-        // Append all cells to row
-        row.append(productCell);
-        row.append(stockCell);
-        row.append(qtyCell);
-        row.append(priceCell);
-        row.append(totalCell);
-        row.append(actionCell);
+        row.innerHTML = `
+            <td>
+                <select class="form-select product-select" name="product_${rowCounter}" required>
+                    <option value="">Select Product</option>
+                    {% for product in products %}
+                    <option value="{{ product.id }}" data-price="{{ product.selling_price }}">
+                        {{ product.name }} ({{ product.sku }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </td>
+            <td>
+                <span class="stock-info text-muted">Select Location</span>
+            </td>
+            <td>
+                <input type="number" class="form-control quantity" name="quantity_${rowCounter}" 
+                       min="1" value="1" step="1" required onchange="validateStock(this)">
+            </td>
+            <td>
+                <div class="input-group">
+                    <span class="input-group-text">UGX</span>
+                    <input type="number" class="form-control unit-price" name="unit_price_${rowCounter}" 
+                           step="100" min="100" placeholder="0" required>
+                </div>
+            </td>
+            <td>
+                <div class="input-group">
+                    <span class="input-group-text">UGX</span>
+                    <input type="text" class="form-control total" readonly value="0">
+                </div>
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn btn-danger btn-sm remove-row">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
         
         return row;
     }
 
-    // ADD PRODUCT BUTTON HANDLER WITH PRICE MEMORY
-    $('#addProductBtn').click(function(){
-        console.log('Add Product button clicked');
-        let row = createProductRow();
-        $('#productsTable tbody').append(row);
+    // Validate stock when quantity changes
+    async function validateStock(input) {
+        const row = input.closest('.product-row');
+        const productSelect = row.querySelector('.product-select');
+        const stockInfo = row.querySelector('.stock-info');
+        const quantity = parseInt(input.value) || 0;
         
-        let productSelect = row.find('.product_select');
-        initializeProductSelect(productSelect);
+        if (currentLocationId && productSelect.value) {
+            const stock = await getProductStock(productSelect.value);
+            
+            if (quantity > stock) {
+                showStockWarning(`Quantity (${quantity}) exceeds available stock (${stock})`);
+                row.style.backgroundColor = '#450a0a';
+                input.classList.add('is-invalid');
+            } else {
+                row.style.backgroundColor = '';
+                input.classList.remove('is-invalid');
+                hideStockWarning();
+            }
+        }
+        
+        recalcRow(row);
+    }
+
+    // Add event listeners to a row
+    function setupRowEvents(row) {
+        const productSelect = row.querySelector('.product-select');
+        const quantityInput = row.querySelector('.quantity');
+        const priceInput = row.querySelector('.unit-price');
+        const totalInput = row.querySelector('.total');
+        const removeBtn = row.querySelector('.remove-row');
+        const stockInfo = row.querySelector('.stock-info');
+        
+        // Initialize Select2 for product selection
+        $(productSelect).select2({
+            placeholder: "Select a product...",
+            allowClear: true,
+            width: '100%'
+        });
         
         // Product selection handler
-        productSelect.on('select2:select', function(e) {
-            let data = e.params.data;
-            console.log('Product selected:', data);
-            if (data) {
-                let row = $(this).closest('tr');
-                
-                // Use saved price if available, otherwise use default selling price
-                let priceToUse = data.saved_price || data.selling_price;
-                row.find('.unit_price').val(parseFloat(priceToUse).toFixed(2));
-                
-                recalcRow(row);
-                
-                // Update stock display for selected product and location
-                updateStockDisplay(row);
-                
-                // Auto-focus quantity field
-                row.find('.qty').focus().select();
+        $(productSelect).on('change', async function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const sellingPrice = selectedOption?.dataset?.price;
+            const productId = this.value;
+            
+            if (sellingPrice && priceInput.value === '') {
+                priceInput.value = parseFloat(sellingPrice).toFixed(0);
             }
-        });
-
-        // Product clearing handler
-        productSelect.on('select2:clear', function() {
-            let row = $(this).closest('tr');
-            row.find('.unit_price').val('');
-            row.find('.qty').val('1');
-            row.find('.total').val('');
-            row.find('.stock-display').html('<div class="stock-info">-</div>');
-            row.removeClass('low-stock');
-            recalcGrandTotal();
-            recalcItemsData();
-        });
-
-        // Quantity and price change handlers
-        row.find('.qty, .unit_price').on('input', function() {
-            let row = $(this).closest('tr');
+            
+            // Update stock info when product is selected
+            if (productId && currentLocationId) {
+                const stock = await getProductStock(productId);
+                stockInfo.textContent = stock;
+                
+                if (stock === 0) {
+                    stockInfo.className = 'stock-info text-danger fw-bold';
+                    showStockWarning('Selected product is out of stock at this location');
+                } else {
+                    stockInfo.className = 'stock-info text-success';
+                }
+            }
+            
             recalcRow(row);
         });
-
+        
+        // Price change handler
+        priceInput.addEventListener('input', () => recalcRow(row));
+        
         // Remove row handler
-        row.find('.removeRow').click(function() {
-            $(this).closest('tr').remove();
+        removeBtn.addEventListener('click', function() {
+            if (document.querySelectorAll('.product-row').length > 1) {
+                row.remove();
+            } else {
+                // Clear the row if it's the last one
+                productSelect.value = '';
+                $(productSelect).trigger('change');
+                quantityInput.value = '1';
+                priceInput.value = '';
+                totalInput.value = '0';
+                stockInfo.textContent = 'Select Location';
+                stockInfo.className = 'stock-info text-muted';
+            }
             recalcGrandTotal();
             recalcItemsData();
+            updateAllStockInfo();
         });
+    }
 
-        recalcRow(row);
+    // Recalculate row total
+    function recalcRow(row) {
+        const quantity = parseFloat(row.querySelector('.quantity').value) || 0;
+        const unitPrice = parseFloat(row.querySelector('.unit-price').value) || 0;
+        const total = quantity * unitPrice;
         
-        // Auto-focus the product search
-        setTimeout(function() {
-            productSelect.select2('open');
-        }, 100);
-    });
-
-    // Update stock display when location changes
-    $('#id_location').change(function() {
-        $('#productsTable tbody tr').each(function() {
-            updateStockDisplay($(this));
-        });
-    });
-
-    // Update payment status when paid amount changes
-    $('#id_paid_amount').on('input', updatePaymentStatus);
-
-    // Form validation with stock check
-    $('#saleForm').submit(function(e) {
-        console.log('Form submission started');
+        row.querySelector('.total').value = formatUGX(total);
+        recalcGrandTotal();
         recalcItemsData();
+    }
+
+    // Recalculate grand total
+    function recalcGrandTotal() {
+        let total = 0;
+        document.querySelectorAll('.product-row').forEach(row => {
+            const totalInput = row.querySelector('.total');
+            const rowTotal = parseUGX(totalInput.value);
+            total += rowTotal;
+        });
+        grandTotal.textContent = formatUGX(total);
         
-        let items = JSON.parse($('#id_items_data').val() || '[]');
-        
-        if (items.length === 0) {
-            alert('Please add at least one product to the sale.');
-            e.preventDefault();
-            return false;
+        // Auto-update paid amount if document type is receipt
+        const documentType = documentTypeSelect.value;
+        if (documentType === 'receipt' && total > 0) {
+            paidAmountInput.value = total;
+            paidAmountHelp.innerHTML = '<i class="fas fa-info-circle text-info"></i> Paid amount auto-filled for receipt';
+            paidAmountHelp.className = 'form-text text-info';
         }
         
-        let emptyRows = false;
-        $('#productsTable tbody tr').each(function() {
-            if (!$(this).find('.product_select').val()) {
-                emptyRows = true;
+        updatePaymentStatus();
+    }
+
+    // Serialize products data to hidden field
+    function recalcItemsData() {
+        const items = [];
+        document.querySelectorAll('.product-row').forEach(row => {
+            const productSelect = row.querySelector('.product-select');
+            const productId = productSelect.value;
+            
+            if (productId) {
+                const quantity = parseFloat(row.querySelector('.quantity').value) || 0;
+                const unitPrice = parseFloat(row.querySelector('.unit-price').value) || 0;
+                const total = quantity * unitPrice;
+                
+                items.push({
+                    product_id: parseInt(productId),
+                    quantity: quantity,
+                    unit_price: unitPrice,
+                    total: total
+                });
             }
         });
         
-        if (emptyRows) {
-            alert('Please select products for all rows or remove empty rows.');
-            e.preventDefault();
-            return false;
-        }
-        
-        let locationId = $('#id_location').val();
-        if (!locationId) {
-            alert('Please select a location.');
-            e.preventDefault();
-            return false;
-        }
-        
-        let hasStockIssues = false;
-        let stockIssueMessages = [];
-        
-        $('#productsTable tbody tr').each(function() {
-            if ($(this).hasClass('low-stock')) {
-                hasStockIssues = true;
-                let productName = $(this).find('.product_select').find('option:selected').text().split(' - ')[0];
-                stockIssueMessages.push(productName);
+        itemsData.value = JSON.stringify(items);
+        console.log('Items data updated:', items);
+    }
+
+    // Add product row
+    if (addProductBtn) {
+        addProductBtn.addEventListener('click', function() {
+            if (!currentLocationId) {
+                alert('Please select a location first to check stock availability');
+                if (locationSelect) locationSelect.focus();
+                return;
             }
+
+            const newRow = createProductRow();
+            productsTableBody.appendChild(newRow);
+            setupRowEvents(newRow);
+            recalcItemsData();
+            
+            // Focus on the new product select
+            setTimeout(() => {
+                $(newRow.querySelector('.product-select')).select2('open');
+            }, 100);
         });
-        
-        if (hasStockIssues) {
-            let message = 'Some products have insufficient stock:\n\n' + 
-                         stockIssueMessages.join('\n') + 
-                         '\n\nDo you want to continue anyway?';
-            if (!confirm(message)) {
-                e.preventDefault();
+    }
+
+    // Form validation
+    if (saleForm) {
+        saleForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            recalcItemsData();
+            const items = JSON.parse(itemsData.value || '[]');
+            
+            // Validate location is selected
+            if (!currentLocationId) {
+                alert('Please select a location for this sale');
+                if (locationSelect) locationSelect.focus();
                 return false;
             }
-        }
-        
-        let documentType = $('#id_document_type').val();
-        let customer = $('#id_customer').val();
-        if (documentType === 'invoice' && !customer) {
-            alert('Customer is required for invoices.');
-            e.preventDefault();
-            return false;
-        }
-        
-        console.log('Form validation passed');
-        return true;
-    });
-
-    // Initialize payment status
-    updatePaymentStatus();
-    
-    // Auto-add first product row when page loads
-    setTimeout(function() {
-        if ($('#productsTable tbody tr').length === 0) {
-            console.log('Auto-adding first product row');
-            $('#addProductBtn').click();
-        }
-    }, 500);
-    
-    // Clear saved prices button (for testing/debugging)
-    $('body').append('<button type="button" id="clearPrices" style="position: fixed; bottom: 10px; right: 10px; z-index: 1000; display: none;" class="btn btn-warning btn-sm">Clear Prices</button>');
-    $('#clearPrices').click(function() {
-        localStorage.removeItem('productPrices');
-        productPrices = {};
-        alert('Saved prices cleared!');
-        location.reload();
-    });
-});
-
-// Function to open transfer modal
-function openTransferModal(productId) {
-    let productName = $('#productsTable').find('.product_select option:selected').text().split(' - ')[0];
-    let currentLocation = $('#id_location option:selected').text();
-    
-    if (confirm(`Redirect to stock transfer page for "${productName}" from other locations to "${currentLocation}"?`)) {
-        window.open(`{% url 'inventory:transfer_add' %}?product_id=${productId}&to_location=${$('#id_location').val()}`, '_blank');
+            
+            // Validate at least one product
+            if (items.length === 0) {
+                alert('Please add at least one product to the sale');
+                return false;
+            }
+            
+            // Validate document type and payment for receipts
+            const documentType = documentTypeSelect.value;
+            const totalAmount = parseUGX(grandTotal.textContent);
+            const paidAmount = parseFloat(paidAmountInput.value) || 0;
+            
+            if (documentType === 'receipt' && paidAmount < totalAmount) {
+                if (!confirm(`This is a receipt but paid amount (UGX ${formatUGX(paidAmount)}) is less than total (UGX ${formatUGX(totalAmount)}). Continue anyway?`)) {
+                    return false;
+                }
+            }
+            
+            // Validate stock for all products
+            let stockIssues = [];
+            let hasStockProblems = false;
+            
+            for (const item of items) {
+                const stock = await getProductStock(item.product_id);
+                if (item.quantity > stock) {
+                    // Get product name for better error message
+                    const productSelect = document.querySelector(`[value="${item.product_id}"]`);
+                    const productName = productSelect ? productSelect.textContent.split('(')[0].trim() : `Product ${item.product_id}`;
+                    stockIssues.push(`${productName}: Requested ${item.quantity}, Available ${stock}`);
+                    hasStockProblems = true;
+                }
+            }
+            
+            // Validate all rows have valid data
+            let hasErrors = false;
+            let errorMessages = [];
+            
+            document.querySelectorAll('.product-row').forEach((row, index) => {
+                const productSelect = row.querySelector('.product-select');
+                const quantity = row.querySelector('.quantity').value;
+                const unitPrice = row.querySelector('.unit-price').value;
+                
+                if (!productSelect.value) {
+                    hasErrors = true;
+                    row.style.backgroundColor = '#450a0a';
+                    errorMessages.push(`Row ${index + 1}: Please select a product`);
+                } else if (!quantity || quantity <= 0) {
+                    hasErrors = true;
+                    row.style.backgroundColor = '#450a0a';
+                    errorMessages.push(`Row ${index + 1}: Please enter a valid quantity`);
+                } else if (!unitPrice || unitPrice < 100) {
+                    hasErrors = true;
+                    row.style.backgroundColor = '#450a0a';
+                    errorMessages.push(`Row ${index + 1}: Please enter a valid unit price (minimum UGX 100)`);
+                } else {
+                    row.style.backgroundColor = '';
+                }
+            });
+            
+            // Validate required fields
+            const location = document.querySelector('[name="location"]').value;
+            const customer = document.querySelector('[name="customer"]').value;
+            
+            if (!location) {
+                alert('Please select a location');
+                document.querySelector('[name="location"]').focus();
+                return false;
+            }
+            
+            // Customer is required for invoices
+            if (documentType === 'invoice' && !customer) {
+                alert('Customer is required for invoices');
+                document.querySelector('[name="customer"]').focus();
+                return false;
+            }
+            
+            if (hasErrors) {
+                alert('Please fix the following errors:\n\n' + errorMessages.join('\n'));
+                return false;
+            }
+            
+            // Handle stock problems
+            if (hasStockProblems) {
+                const message = "Stock issues detected:\n" + stockIssues.join('\n') + "\n\nDo you want to continue anyway?";
+                if (!confirm(message)) {
+                    return false;
+                }
+            }
+            
+            // Confirm large sales (10 million UGX)
+            if (totalAmount > 10000000) {
+                if (!confirm(`This sale totals UGX ${formatUGX(totalAmount)}. Are you sure you want to proceed?`)) {
+                    return false;
+                }
+            }
+            
+            console.log('Form submitted successfully');
+            // If we get here, submit the form
+            this.submit();
+            return true;
+        });
     }
-}
+
+    // Save and print function
+    function saveAndPrint() {
+        // Add a hidden field to indicate print request
+        const printInput = document.createElement('input');
+        printInput.type = 'hidden';
+        printInput.name = 'print';
+        printInput.value = 'true';
+        saleForm.appendChild(printInput);
+        
+        // Submit the form
+        saleForm.dispatchEvent(new Event('submit'));
+    }
+
+    // Reset form
+    const resetButton = document.getElementById('resetButton');
+    if (resetButton) {
+        resetButton.addEventListener('click', function() {
+            if (confirm('Are you sure you want to reset the form? All entered data will be lost.')) {
+                productsTableBody.innerHTML = '';
+                saleForm.reset();
+                document.querySelector('[name="date"]').value = '{{ default_date }}';
+                grandTotal.textContent = '0';
+                itemsData.value = '[]';
+                paidAmountInput.value = '0';
+                currentLocationId = null;
+                updatePaymentStatus();
+                hideStockWarning();
+                
+                // Reset help texts
+                paidAmountHelp.innerHTML = 'Amount already paid by customer';
+                paidAmountHelp.className = 'form-text text-muted';
+                
+                // Reset Select2 dropdowns
+                $('.select2').val('').trigger('change');
+                
+                // Reset add product button
+                if (addProductBtn) {
+                    addProductBtn.disabled = true;
+                    addProductBtn.innerHTML = '<i class="fas fa-plus"></i> Add Product (Select Location First)';
+                    addProductBtn.className = 'btn btn-secondary';
+                }
+                
+                // Add initial row
+                setTimeout(() => {
+                    if (productsTableBody.children.length === 0) {
+                        addProductBtn.click();
+                    }
+                }, 100);
+            }
+        });
+    }
+
+    // Update payment status when paid amount changes
+    paidAmountInput.addEventListener('input', updatePaymentStatus);
+
+    // Initialize Select2 for dropdowns if locations are available
+    if (locationsAvailable) {
+        $('#id_customer').select2({
+            placeholder: "Select a customer...",
+            allowClear: true,
+            width: '100%'
+        });
+        
+        $('#id_location').select2({
+            placeholder: "Select a location...",
+            allowClear: false,
+            width: '100%'
+        }).on('change', updateAllStockInfo);
+        
+        $('#id_document_type').select2({
+            placeholder: "Select document type...",
+            allowClear: false,
+            width: '100%'
+        }).on('change', handleDocumentTypeChange);
+        
+        $('#id_currency').select2({
+            placeholder: "Select currency...",
+            allowClear: false,
+            width: '100%'
+        });
+
+        // Add initial row on page load
+        setTimeout(() => {
+            if (productsTableBody.children.length === 0) {
+                addProductBtn.click();
+            }
+            updatePaymentStatus();
+        }, 100);
+    }
+});
 </script>
+
+<style>
+:root {
+    --bg: #071029;
+    --card: #0e1622;
+    --muted: #9fb0c8;
+    --accent: #4f46e5;
+    --accent2: #06b6d4;
+    --positive: #10b981;
+    --negative: #ef4444;
+}
+
+body {
+    background: var(--bg);
+    color: var(--muted);
+    font-family: Inter, system-ui, Roboto;
+}
+
+.card {
+    background: var(--card);
+    color: var(--muted);
+    border-radius: 8px;
+    border: 1px solid #1e293b;
+}
+
+.form-control, .form-select {
+    background: var(--card);
+    border: 1px solid #374151;
+    color: var(--muted);
+}
+
+.form-control:focus, .form-select:focus {
+    background: var(--card);
+    border-color: var(--accent);
+    color: var(--muted);
+    box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.25);
+}
+
+.form-control.is-invalid {
+    border-color: var(--negative);
+    box-shadow: 0 0 0 0.2rem rgba(239, 68, 68, 0.25);
+}
+
+.form-label {
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.input-group-text {
+    background: #1e293b;
+    border: 1px solid #374151;
+    color: var(--muted);
+}
+
+.table {
+    color: var(--muted);
+    border-color: #374151;
+}
+
+.table-bordered th,
+.table-bordered td {
+    border-color: #374151;
+}
+
+.table-light {
+    background: #1e293b;
+    color: var(--muted);
+}
+
+.btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.btn-primary:hover {
+    background: #4338ca;
+    border-color: #4338ca;
+}
+
+.btn-success {
+    background: var(--positive);
+    border-color: var(--positive);
+}
+
+.btn-success:hover {
+    background: #0da271;
+    border-color: #0da271;
+}
+
+.btn-danger {
+    background: var(--negative);
+    border-color: var(--negative);
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+}
+
+.btn-secondary {
+    background: #6b7280;
+    border-color: #6b7280;
+}
+
+.btn-outline-info {
+    color: #06b6d4;
+    border-color: #06b6d4;
+}
+
+.btn-outline-info:hover {
+    background: #06b6d4;
+    border-color: #06b6d4;
+    color: white;
+}
+
+.select2-container--default .select2-selection--single {
+    background: var(--card);
+    border: 1px solid #374151;
+    color: var(--muted);
+    height: 38px;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    color: var(--muted);
+    line-height: 36px;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 36px;
+}
+
+.select2-container--default .select2-results__option {
+    background: var(--card);
+    color: var(--muted);
+}
+
+.select2-container--default .select2-results__option--highlighted[aria-selected] {
+    background: var(--accent);
+    color: white;
+}
+
+.select2-container--default .select2-dropdown {
+    background: var(--card);
+    border: 1px solid #374151;
+}
+
+.text-white { color: white !important; }
+.text-success { color: var(--positive) !important; }
+.text-danger { color: var(--negative) !important; }
+.text-warning { color: #f59e0b !important; }
+.text-muted { color: var(--muted) !important; }
+.text-info { color: #06b6d4 !important; }
+
+.alert {
+    background: var(--card);
+    border: 1px solid #374151;
+    color: var(--muted);
+}
+
+.alert-warning {
+    border-color: #f59e0b;
+    background: #451a03;
+}
+
+.alert-success {
+    border-color: var(--positive);
+}
+
+.alert-danger {
+    border-color: var(--negative);
+}
+
+.table-hover tbody tr:hover {
+    background-color: #1e293b;
+    color: var(--muted);
+}
+
+/* Ensure Select2 dropdown appears above other elements */
+.select2-container {
+    z-index: 1055;
+}
+
+.select2-dropdown {
+    z-index: 1056;
+}
+
+/* Payment status styles */
+.bg-success { background-color: var(--positive) !important; }
+.bg-warning { background-color: #f59e0b !important; }
+.bg-danger { background-color: var(--negative) !important; }
+.bg-secondary { background-color: #6b7280 !important; }
+
+.fw-bold { font-weight: bold !important; }
+
+/* Stock status colors */
+.stock-info.text-success { color: var(--positive) !important; }
+.stock-info.text-warning { color: #f59e0b !important; }
+.stock-info.text-danger { color: var(--negative) !important; }
+.stock-info.text-muted { color: var(--muted) !important; }
+</style>
+{% endblock %}
