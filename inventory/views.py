@@ -6153,3 +6153,92 @@ def export_transfer_report(request, report_type):
     
     return response
 
+@login_required
+def supplier_analysis_report(request):
+    """Supplier performance and analysis report"""
+    # Get filter parameters
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    location_filter = request.GET.get('location', '')
+    min_orders = int(request.GET.get('min_orders', 1))
+    
+    # Get purchases with filters
+    purchases = Purchase.objects.all()
+    
+    if date_from:
+        purchases = purchases.filter(purchase_date__date__gte=date_from)
+    if date_to:
+        purchases = purchases.filter(purchase_date__date__lte=date_to)
+    if location_filter:
+        purchases = purchases.filter(location_id=location_filter)
+    
+    # Calculate supplier performance
+    supplier_performance = {}
+    
+    for purchase in purchases.select_related('location').prefetch_related('items'):
+        supplier_name = purchase.supplier_name
+        if not supplier_name:
+            continue
+            
+        if supplier_name not in supplier_performance:
+            supplier_performance[supplier_name] = {
+                'name': supplier_name,
+                'total_spent': 0,
+                'order_count': 0,
+                'last_order_date': purchase.purchase_date,
+                'locations': set(),
+                'total_items': 0
+            }
+        
+        supplier_data = supplier_performance[supplier_name]
+        supplier_data['total_spent'] += float(purchase.total_amount)
+        supplier_data['order_count'] += 1
+        supplier_data['total_items'] += purchase.get_total_quantity()
+        supplier_data['locations'].add(purchase.location.name)
+        
+        if purchase.purchase_date > supplier_data['last_order_date']:
+            supplier_data['last_order_date'] = purchase.purchase_date
+    
+    # Calculate averages and prepare data
+    supplier_list = []
+    for supplier_name, data in supplier_performance.items():
+        if data['order_count'] >= min_orders:
+            data['avg_order_value'] = data['total_spent'] / data['order_count']
+            data['locations_list'] = list(data['locations'])
+            supplier_list.append(data)
+    
+    # Sort by total spent (highest first)
+    supplier_list.sort(key=lambda x: x['total_spent'], reverse=True)
+    
+    # Get top products
+    top_products = PurchaseItem.objects.filter(
+        purchase__in=purchases
+    ).values(
+        'product__name', 'product__sku', 'purchase__supplier_name'
+    ).annotate(
+        total_quantity=Sum('quantity'),
+        total_cost=Sum(F('quantity') * F('unit_price')),
+        avg_unit_price=Avg('unit_price')
+    ).order_by('-total_quantity')[:20]
+    
+    # Calculate summary statistics
+    total_suppliers = len(supplier_list)
+    total_spent = sum(supplier['total_spent'] for supplier in supplier_list)
+    total_orders = sum(supplier['order_count'] for supplier in supplier_list)
+    avg_order_value = total_spent / total_orders if total_orders > 0 else 0
+    
+    context = {
+        'supplier_performance': supplier_list,
+        'top_products': top_products,
+        'total_suppliers': total_suppliers,
+        'total_spent': total_spent,
+        'total_orders': total_orders,
+        'avg_order_value': avg_order_value,
+        'locations': get_user_locations(request.user),
+        'date_from': date_from,
+        'date_to': date_to,
+        'location_filter': location_filter,
+        'min_orders': min_orders,
+    }
+    
+    return render(request, 'inventory/reports/supplier_analysis.html', context)

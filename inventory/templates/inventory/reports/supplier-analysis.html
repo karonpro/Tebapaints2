@@ -1,0 +1,495 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-white">Supplier Analysis Report</h2>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-info" onclick="exportToCSV()">
+                <i class="fas fa-file-export"></i> Export CSV
+            </button>
+            <button type="button" class="btn btn-outline-primary" onclick="printReport()">
+                <i class="fas fa-print"></i> Print Report
+            </button>
+            <a href="{% url 'inventory:reports_dashboard' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Reports
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0 text-white">Filters</h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Date From</label>
+                        <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Date To</label>
+                        <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Location</label>
+                        <select name="location" class="form-select">
+                            <option value="">All Locations</option>
+                            {% for location in locations %}
+                                <option value="{{ location.id }}" {% if location_filter == location.id|stringformat:"i" %}selected{% endif %}>
+                                    {{ location.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Min Orders</label>
+                        <input type="number" name="min_orders" class="form-control" value="{{ min_orders }}" min="1" placeholder="1">
+                    </div>
+                    <div class="col-12">
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-filter"></i> Apply Filters
+                            </button>
+                            <a href="{% url 'inventory:supplier_analysis' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-refresh"></i> Reset
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Total Suppliers</h6>
+                            <h3 class="mb-0">{{ total_suppliers }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-truck fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Total Spent</h6>
+                            <h3 class="mb-0">UGX {{ total_spent|floatformat:0 }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-money-bill-wave fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Total Orders</h6>
+                            <h3 class="mb-0">{{ total_orders }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-shopping-cart fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Avg Order Value</h6>
+                            <h3 class="mb-0">UGX {{ avg_order_value|floatformat:0 }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-chart-line fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supplier Performance Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0 text-white">Supplier Performance</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover" id="supplierTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Supplier</th>
+                            <th>Total Orders</th>
+                            <th>Total Spent (UGX)</th>
+                            <th>Avg Order Value (UGX)</th>
+                            <th>Last Order Date</th>
+                            <th>Performance</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for supplier in supplier_performance %}
+                        <tr>
+                            <td>
+                                <strong>{{ supplier.name }}</strong>
+                                {% if supplier.contact_person %}
+                                <br><small class="text-muted">Contact: {{ supplier.contact_person }}</small>
+                                {% endif %}
+                                {% if supplier.phone %}
+                                <br><small class="text-muted">Phone: {{ supplier.phone }}</small>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">{{ supplier.order_count }}</td>
+                            <td class="text-end">UGX {{ supplier.total_spent|floatformat:0 }}</td>
+                            <td class="text-end">UGX {{ supplier.avg_order_value|floatformat:0 }}</td>
+                            <td>{{ supplier.last_order_date|date:"M d, Y"|default:"No orders" }}</td>
+                            <td>
+                                {% if supplier.order_count >= 10 %}
+                                    <span class="badge bg-success">Excellent</span>
+                                {% elif supplier.order_count >= 5 %}
+                                    <span class="badge bg-info">Good</span>
+                                {% elif supplier.order_count >= 2 %}
+                                    <span class="badge bg-warning">Fair</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">New</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-primary" 
+                                            onclick="viewSupplierDetails('{{ supplier.name }}')"
+                                            title="View Details">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <a href="{% url 'inventory:purchase_list' %}?supplier={{ supplier.name|urlencode }}" 
+                                       class="btn btn-outline-info" title="View Purchases">
+                                        <i class="fas fa-shopping-cart"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                <i class="fas fa-info-circle fa-2x mb-2"></i><br>
+                                No supplier data found for the selected filters.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="row mt-4">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0 text-white">Top Suppliers by Spending</h5>
+                </div>
+                <div class="card-body">
+                    <div id="spendingChart" style="height: 300px;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0 text-white">Supplier Order Frequency</h5>
+                </div>
+                <div class="card-body">
+                    <div id="ordersChart" style="height: 300px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Products by Supplier -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0 text-white">Top Purchased Products</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Product</th>
+                            <th>Supplier</th>
+                            <th>Total Quantity</th>
+                            <th>Total Cost (UGX)</th>
+                            <th>Avg Unit Price (UGX)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in top_products %}
+                        <tr>
+                            <td>
+                                <strong>{{ product.product__name }}</strong>
+                                {% if product.product__sku %}
+                                <br><small class="text-muted">SKU: {{ product.product__sku }}</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ product.supplier_name }}</td>
+                            <td class="text-center">{{ product.total_quantity }}</td>
+                            <td class="text-end">UGX {{ product.total_cost|floatformat:0 }}</td>
+                            <td class="text-end">UGX {{ product.avg_unit_price|floatformat:0 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">
+                                No product data available.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Supplier Details Modal -->
+<div class="modal fade" id="supplierModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="supplierModalTitle">Supplier Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="supplierModalBody">
+                <!-- Content will be loaded dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Include Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize charts
+    initializeCharts();
+    
+    // Initialize DataTable if available
+    if ($.fn.DataTable) {
+        $('#supplierTable').DataTable({
+            pageLength: 25,
+            order: [[2, 'desc']], // Sort by total spent descending
+            dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rt<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>'
+        });
+    }
+});
+
+function initializeCharts() {
+    // Spending Chart
+    const spendingCtx = document.getElementById('spendingChart').getContext('2d');
+    const spendingChart = new Chart(spendingCtx, {
+        type: 'bar',
+        data: {
+            labels: [{% for supplier in supplier_performance|slice:":10" %}'{{ supplier.name }}',{% endfor %}],
+            datasets: [{
+                label: 'Total Spent (UGX)',
+                data: [{% for supplier in supplier_performance|slice:":10" %}{{ supplier.total_spent }},{% endfor %}],
+                backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return 'UGX ' + value.toLocaleString();
+                        }
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return 'Spent: UGX ' + context.parsed.y.toLocaleString();
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Orders Chart
+    const ordersCtx = document.getElementById('ordersChart').getContext('2d');
+    const ordersChart = new Chart(ordersCtx, {
+        type: 'doughnut',
+        data: {
+            labels: [{% for supplier in supplier_performance|slice:":8" %}'{{ supplier.name }}',{% endfor %}],
+            datasets: [{
+                data: [{% for supplier in supplier_performance|slice:":8" %}{{ supplier.order_count }},{% endfor %}],
+                backgroundColor: [
+                    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
+                    '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': ' + context.parsed + ' orders';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function viewSupplierDetails(supplierName) {
+    // In a real implementation, you would fetch supplier details via AJAX
+    // For now, we'll show a simple modal with basic info
+    const modalTitle = document.getElementById('supplierModalTitle');
+    const modalBody = document.getElementById('supplierModalBody');
+    
+    modalTitle.textContent = 'Supplier: ' + supplierName;
+    modalBody.innerHTML = `
+        <div class="text-center">
+            <i class="fas fa-truck fa-3x text-primary mb-3"></i>
+            <h4>${supplierName}</h4>
+            <p class="text-muted">Detailed supplier information would be loaded here.</p>
+            <div class="row mt-3">
+                <div class="col-6">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h6>Recent Orders</h6>
+                            <p class="h4">${getSupplierOrderCount(supplierName)}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h6>Total Spent</h6>
+                            <p class="h4">UGX ${getSupplierTotalSpent(supplierName).toLocaleString()}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    new bootstrap.Modal(document.getElementById('supplierModal')).show();
+}
+
+function getSupplierOrderCount(supplierName) {
+    // This would be populated from your data
+    const supplier = {% for s in supplier_performance %}{% if forloop.first %}{ name: '{{ s.name }}', order_count: {{ s.order_count }} }{% endif %}{% endfor %};
+    return supplier && supplier.name === supplierName ? supplier.order_count : 'N/A';
+}
+
+function getSupplierTotalSpent(supplierName) {
+    // This would be populated from your data
+    const supplier = {% for s in supplier_performance %}{% if forloop.first %}{ name: '{{ s.name }}', total_spent: {{ s.total_spent }} }{% endif %}{% endfor %};
+    return supplier && supplier.name === supplierName ? supplier.total_spent : 0;
+}
+
+function exportToCSV() {
+    // Simple CSV export implementation
+    let csv = 'Supplier,Total Orders,Total Spent,Avg Order Value,Last Order Date\n';
+    
+    {% for supplier in supplier_performance %}
+    csv += `"{{ supplier.name }}",{{ supplier.order_count }},{{ supplier.total_spent }},{{ supplier.avg_order_value }},"{{ supplier.last_order_date|date:'Y-m-d' }}"\n`;
+    {% endfor %}
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'supplier_analysis_{{ date_from|default:"all" }}_to_{{ date_to|default:"all" }}.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+
+function printReport() {
+    window.print();
+}
+
+// Auto-refresh data every 5 minutes
+setTimeout(() => {
+    window.location.reload();
+}, 300000);
+</script>
+
+<style>
+@media print {
+    .btn, .card-header .btn, .d-flex.gap-2 {
+        display: none !important;
+    }
+    
+    .card {
+        border: 1px solid #000 !important;
+        break-inside: avoid;
+    }
+    
+    .table {
+        font-size: 12px;
+    }
+}
+
+.card {
+    background: var(--card-bg, #1e293b);
+    border: 1px solid #374151;
+}
+
+.table {
+    color: var(--text-muted, #9fb0c8);
+}
+
+.badge {
+    font-size: 0.75em;
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
+}
+</style>
+{% endblock %}

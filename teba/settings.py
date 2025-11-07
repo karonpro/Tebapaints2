@@ -26,13 +26,7 @@ DEBUG = True  # Set to False in production
 
 # Allowed hosts for deployment
 DEBUG = True
-ALLOWED_HOSTS = [
-    '.vercel.app',
-    '.now.sh',
-    'localhost',
-    '127.0.0.1',
-    '.teba.vercel.app'  # Your custom domain if you have one
-]
+ALLOWED_HOSTS = ["*"]
 
 
 
@@ -125,12 +119,11 @@ import os
 
 DATABASES = {
     'default': dj_database_url.config(
-        default='postgresql://postgres:TzchIqSeREvuncRjOvnhGvqaLMYmkAIu@nozomi.proxy.rlwy.net:56660/railway',
+        default=os.getenv('DATABASE_URL', f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
         conn_max_age=600,
-        ssl_require=True
+        ssl_require=not DEBUG,
     )
 }
-
 
 
 # =======================
@@ -154,8 +147,8 @@ USE_TZ = True
 # STATIC FILES
 # =======================
 STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # =======================
 # AUTHENTICATION BACKENDS
@@ -178,7 +171,7 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_SECURE = False
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
-SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
+
 # =======================
 # CSRF CONFIGURATION
 # =======================
@@ -194,11 +187,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://system-teba.onrender.com',
     'https://teba.fly.dev',
     'https://teba-git-main-karonpros-projects.vercel.app',  # Vercel
-    'https://*.vercel.app',
-    'https://*.now.sh',
-    'https://nozomi.proxy.rlwy.net',
 ]
-
 
 
 
