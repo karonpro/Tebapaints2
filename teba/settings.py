@@ -184,9 +184,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
     'http://localhost:8000',
     'http://0.0.0.0:8000',
-    'https://system-teba.onrender.com',
-    'https://teba.fly.dev',
-    'https://teba-git-main-karonpros-projects.vercel.app',  # Vercel
+   "https://tebapaints-production.up.railway.app",
 ]
 
 
