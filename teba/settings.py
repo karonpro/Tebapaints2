@@ -216,11 +216,11 @@ AXES_NEVER_LOCKOUT_URLS = [
 # =======================
 # ALLAUTH CONFIGURATION
 # =======================
-
+# Site Configuration
 SITE_ID = 1
+
+# AllAuth Configuration (Updated - No Deprecated Settings)
 ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_USERNAME_REQUIRED = False
-ACCOUNT_AUTHENTICATION_METHOD = 'email'
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 ACCOUNT_EMAIL_SUBJECT_PREFIX = '[Teba System] '
 ACCOUNT_ADAPTER = 'core.adapters.CustomAccountAdapter'
@@ -229,10 +229,31 @@ ACCOUNT_LOGOUT_REDIRECT_URL = '/'
 ACCOUNT_SESSION_REMEMBER = True
 ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/core/verify-email-signup/'
 
+# MODERN SETTINGS - Replace deprecated ones
+ACCOUNT_LOGIN_METHODS = {'email'}  # Replaces ACCOUNT_AUTHENTICATION_METHOD
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']  # Replaces ACCOUNT_EMAIL_REQUIRED and ACCOUNT_USERNAME_REQUIRED
+
+# Enhanced AllAuth Settings
+ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 1
+ACCOUNT_EMAIL_CONFIRMATION_COOLDOWN = 60
+ACCOUNT_LOGIN_ATTEMPTS_LIMIT = 5
+ACCOUNT_LOGIN_ATTEMPTS_TIMEOUT = 300
+ACCOUNT_PASSWORD_MIN_LENGTH = 8
+ACCOUNT_RATE_LIMITS = {
+    'login_failed': '5/5m',
+    'signup': '10/1h',
+}
+
+# Redirect URLs
 LOGIN_REDIRECT_URL = '/inventory/'
 LOGOUT_REDIRECT_URL = '/'
 LOGIN_URL = '/accounts/login/'
 ACCOUNT_SIGNUP_REDIRECT_URL = '/core/verify-email-signup/'
+
+# Optional: Prevent auto login after signup to force email verification
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = False
+ACCOUNT_CONFIRM_EMAIL_ON_GET = False
+
 
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
