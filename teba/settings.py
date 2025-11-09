@@ -271,14 +271,16 @@ SOCIALACCOUNT_PROVIDERS = {
 # EMAIL CONFIGURATION
 # =======================
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+# Use SendGrid for email
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.sendgrid.net"
+EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'tebaspprt@gmail.com')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Teba System <noreply@teba.com>')
-SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+EMAIL_HOST_USER = "apikey"  # literal string "apikey"
+EMAIL_HOST_PASSWORD = "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"
+DEFAULT_FROM_EMAIL = "tebaspprt@gmail.com"
+
 
 # =======================
 # SITE INFORMATION
