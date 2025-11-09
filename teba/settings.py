@@ -112,20 +112,14 @@ WSGI_APPLICATION = 'teba.wsgi.application'
 # =======================
 
 import dj_database_url
-
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'railway',
-        'USER': 'postgres',
-        'PASSWORD': 'fLzxaGjIcrxqpWilCfYibiAKIlzIStNx',
-        'HOST': 'trolley.proxy.rlwy.net',
-        'PORT': '36538',
-        'OPTIONS': {
-            'sslmode': 'require',
-        },
-    }
+    'default': dj_database_url.config(
+        default=os.environ.get('DATABASE_URL'),
+        conn_max_age=600,  # keeps connections open for 10 minutes
+        ssl_require=True    # ensures SSL connection
+    )
 }
+
 
 # =======================
 # PASSWORD VALIDATION
