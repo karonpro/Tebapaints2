@@ -22,15 +22,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True  # Set to False in production
+DEBUG = True  # Change to False in production
 
-# Allowed hosts for deployment
-DEBUG = True
 ALLOWED_HOSTS = ["*"]
-
-
-
-
 
 # =======================
 # APPLICATION DEFINITION
@@ -75,10 +69,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-  
+
     # Custom Middleware
     'core.middleware.SessionErrorMiddleware',
-    
+
     # Third Party Middleware
     'allauth.account.middleware.AccountMiddleware',
     'core.middleware.LocationAccessMiddleware',
@@ -94,7 +88,10 @@ ROOT_URLCONF = 'teba.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates', BASE_DIR / 'core' / 'templates'],
+        'DIRS': [
+            BASE_DIR / 'templates',
+            BASE_DIR / 'core' / 'templates'
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -111,11 +108,10 @@ TEMPLATES = [
 WSGI_APPLICATION = 'teba.wsgi.application'
 
 # =======================
-# DATABASE CONFIGURATION
+# DATABASE CONFIGURATION (LEFT AS YOU REQUESTED)
 # =======================
 
 import dj_database_url
-import os
 
 DATABASES = {
     'default': {
@@ -136,7 +132,7 @@ DATABASES = {
 # =======================
 
 AUTH_PASSWORD_VALIDATORS = [
-    # Disabled for development - enable in production
+    # Disabled for development
 ]
 
 # =======================
@@ -151,6 +147,7 @@ USE_TZ = True
 # =======================
 # STATIC FILES
 # =======================
+
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
@@ -185,15 +182,13 @@ CSRF_USE_SESSIONS = False
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SECURE = False
 CSRF_COOKIE_SAMESITE = 'Lax'
+
 CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
     'http://localhost:8000',
     'http://0.0.0.0:8000',
-   "https://tebapaints-production.up.railway.app",
+    'https://tebapaints-production.up.railway.app',
 ]
-
-
-
 
 # =======================
 # SECURITY SETTINGS
@@ -233,6 +228,7 @@ ACCOUNT_LOGOUT_ON_GET = False
 ACCOUNT_LOGOUT_REDIRECT_URL = '/'
 ACCOUNT_SESSION_REMEMBER = True
 ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/core/verify-email-signup/'
+
 LOGIN_REDIRECT_URL = '/inventory/'
 LOGOUT_REDIRECT_URL = '/'
 LOGIN_URL = '/accounts/login/'
@@ -266,19 +262,23 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 # =======================
 # SITE INFORMATION
 # =======================
-import os
 
 SITE_NAME = "Teba System"
 
-# Detect if running on Vercel via environment variable
-if os.getenv("VERCEL"):  
-    SITE_DOMAIN = "https://teba-git-main-karonpros-projects.vercel.app/"
+# Detect if running on Railway
+if os.getenv("RAILWAY_ENVIRONMENT"):
+    # Your live production domain on Railway
+    SITE_DOMAIN = "https://tebapaints-production.up.railway.app"
 else:
-    SITE_DOMAIN = "http://127.0.0.1:8000/"
+    # Local development
+    SITE_DOMAIN = "http://127.0.0.1:8000"
 
+ADMINS = [
+    ('Admin', os.getenv('ADMIN_EMAIL', 'tebaspprt@gmail.com'))
+]
 
-ADMINS = [('Admin', os.getenv('ADMIN_EMAIL', 'tebaspprt@gmail.com'))]
 MANAGERS = ADMINS
+
 
 # =======================
 # REST FRAMEWORK CONFIGURATION
@@ -306,10 +306,17 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
-        'verbose': {'format': '{levelname} {asctime} {module} {message}', 'style': '{'},
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{'
+        },
     },
     'handlers': {
-        'console': {'level': 'INFO', 'class': 'logging.StreamHandler', 'formatter': 'verbose'},
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose'
+        },
     },
     'root': {'handlers': ['console'], 'level': 'INFO'},
     'loggers': {
@@ -317,7 +324,3 @@ LOGGING = {
         'core': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
     },
 }
-
-# =======================
-# DEVELOPMENT SETTINGS
-# =======================
