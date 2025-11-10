@@ -123,16 +123,15 @@ TEMPLATES = [
 WSGI_APPLICATION = 'teba.wsgi.application'
 
 # =======================
-# DATABASE - OPTIMIZED FOR RAILWAY
+# DATABASE - OPTIMIZED FOR RAILWAY (FIXED)
 # =======================
 
 if IS_RAILWAY:
-    # Railway PostgreSQL
+    # Railway PostgreSQL - FIXED VERSION
     import dj_database_url
     DATABASES = {
         'default': dj_database_url.config(
             conn_max_age=600,
-            conn_health_checks=True,
             ssl_require=True
         )
     }
@@ -364,15 +363,3 @@ LOGGING = {
         },
     },
 }
-
-# =======================
-# HEALTH CHECKS
-# =======================
-
-if IS_RAILWAY:
-    # Auto-migrate on deploy
-    try:
-        import django_heroku
-        django_heroku.settings(locals(), databases=False)
-    except ImportError:
-        pass
