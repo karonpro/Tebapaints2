@@ -35,7 +35,7 @@ DEBUG = os.getenv('DEBUG', 'False').lower() == 'true' and not IS_PRODUCTION
 if IS_RAILWAY:
     # Railway automatically sets RAILWAY_STATIC_URL
     railway_domain = os.getenv('RAILWAY_STATIC_URL', 'your-app.up.railway.app')
-    ALLOWED_HOSTS = [railway_domain, 'localhost', '127.0.0.1']
+    ALLOWED_HOSTS = [railway_domain, 'localhost', '127.0.0.1', '0.0.0.0']
     CSRF_TRUSTED_ORIGINS = [f"https://{railway_domain}"]
 else:
     ALLOWED_HOSTS = ['*']
@@ -65,7 +65,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'allauth',
     'allauth.account',
-    
+    'allauth.socialaccount',
     'axes',
 
     # Local Apps
@@ -115,7 +115,11 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.user_locations',
+                'core.context_processors.site_info',
             ],
+            'libraries': {
+                'custom_filters': 'core.templatetags.custom_filters',
+            },
         },
     },
 ]
@@ -123,15 +127,16 @@ TEMPLATES = [
 WSGI_APPLICATION = 'teba.wsgi.application'
 
 # =======================
-# DATABASE - OPTIMIZED FOR RAILWAY (FIXED)
+# DATABASE - OPTIMIZED FOR RAILWAY
 # =======================
 
 if IS_RAILWAY:
-    # Railway PostgreSQL - FIXED VERSION
+    # Railway PostgreSQL
     import dj_database_url
     DATABASES = {
         'default': dj_database_url.config(
             conn_max_age=600,
+            conn_health_checks=True,
             ssl_require=True
         )
     }
@@ -150,10 +155,19 @@ else:
 
 AUTH_PASSWORD_VALIDATORS = [
     {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
         'OPTIONS': {
             'min_length': 8,
         }
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
 
@@ -172,7 +186,13 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
+
+# WhiteNoise configuration
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+WHITENOISE_MANIFEST_STRICT = False
 
 # =======================
 # AUTHENTICATION
@@ -198,9 +218,11 @@ if IS_PRODUCTION:
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_SSL_REDIRECT = True
 else:
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
+    SECURE_SSL_REDIRECT = False
 
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
@@ -216,30 +238,33 @@ AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = 1  # 1 hour
 AXES_RESET_ON_SUCCESS = True
 AXES_LOCKOUT_TEMPLATE = 'account/lockout.html'
-AXES_NEVER_LOCKOUT_URLS = [
+AXES_NEVER_LOCKOUT_WHITELIST = [
     '/core/verify-login/',
     '/core/verify-email-signup/',
     '/core/session-test/',
 ]
+AXES_USE_USER_AGENT = True
+AXES_LOCKOUT_PARAMETERS = ['ip_address', 'username']
 
 # =======================
-# ALLAUTH CONFIGURATION
+# ALLAUTH CONFIGURATION - UPDATED
 # =======================
 
 SITE_ID = 1
 
-# Email & Authentication
+# Email & Authentication - FIXED
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
 ACCOUNT_EMAIL_SUBJECT_PREFIX = '[Teba Paint Center] '
 ACCOUNT_ADAPTER = 'core.adapters.CustomAccountAdapter'
 ACCOUNT_LOGOUT_ON_GET = False
 ACCOUNT_SESSION_REMEMBER = True
 
-# Modern authentication
-ACCOUNT_LOGIN_METHODS = {'email'}
-ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
+# Modern authentication - FIXED
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 
 # Rate limiting
 ACCOUNT_RATE_LIMITS = {
@@ -254,6 +279,7 @@ ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 1
 ACCOUNT_PASSWORD_MIN_LENGTH = 8
 ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = False
 ACCOUNT_CONFIRM_EMAIL_ON_GET = False
+ACCOUNT_MAX_EMAIL_ADDRESSES = 2
 
 # Redirect URLs
 LOGIN_REDIRECT_URL = '/inventory/'
@@ -263,26 +289,30 @@ ACCOUNT_SIGNUP_REDIRECT_URL = '/core/verify-email-signup/'
 ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/core/verify-email-signup/'
 
 # =======================
-# EMAIL - SENDGRID CONFIGURATION
+# EMAIL CONFIGURATION - FIXED
 # =======================
 
-# SendGrid Configuration
+# Email Configuration - PRIORITIZE CONSOLE FOR DEBUGGING
 SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'tebaspprt@gmail.com')
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
-if SENDGRID_API_KEY:
-    # Production - SendGrid SMTP
+# TEMPORARY: Always use console backend for debugging
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# When ready to switch to SendGrid, use this:
+"""
+if SENDGRID_API_KEY and IS_PRODUCTION:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = 'smtp.sendgrid.net'
     EMAIL_PORT = 587
     EMAIL_USE_TLS = True
     EMAIL_HOST_USER = 'apikey'
     EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'tebaspprt@gmail.com')
 else:
-    # Development - Console emails
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'tebaspprt@gmail.com')
-SERVER_EMAIL = DEFAULT_FROM_EMAIL
+"""
 
 # =======================
 # SITE CONFIGURATION
@@ -313,12 +343,50 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser',
+    ],
 }
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+# Only enable browsable API in development
+if not IS_PRODUCTION:
+    REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'].append('rest_framework.renderers.BrowsableAPIRenderer')
 
 # =======================
-# LOGGING
+# CUSTOM SETTINGS
+# =======================
+
+# Custom user model (if you have one)
+# AUTH_USER_MODEL = 'core.CustomUser'
+
+# File upload settings
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Max upload size (10MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760
+
+# =======================
+# SECURITY HEADERS
+# =======================
+
+if IS_PRODUCTION:
+    # Security headers
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    
+    # Additional security
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# =======================
+# LOGGING - ENHANCED
 # =======================
 
 LOGGING = {
@@ -326,19 +394,29 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{'
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
         },
         'simple': {
             'format': '{levelname} {message}',
-            'style': '{'
+            'style': '{',
         },
+        'django.server': {
+            '()': 'django.utils.log.ServerFormatter',
+            'format': '[{server_time}] {message}',
+            'style': '{',
+        }
     },
     'handlers': {
         'console': {
             'level': 'INFO',
             'class': 'logging.StreamHandler',
             'formatter': 'verbose' if IS_PRODUCTION else 'simple',
+        },
+        'django.server': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'django.server',
         },
     },
     'root': {
@@ -348,6 +426,11 @@ LOGGING = {
     'loggers': {
         'django': {
             'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.server': {
+            'handlers': ['django.server'],
             'level': 'INFO',
             'propagate': False,
         },
@@ -361,5 +444,52 @@ LOGGING = {
             'level': 'WARNING',
             'propagate': False,
         },
+        'allauth': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
+
+# =======================
+# PERFORMANCE OPTIMIZATIONS
+# =======================
+
+# Database connection persistence
+if IS_RAILWAY:
+    DATABASES['default']['CONN_MAX_AGE'] = 600
+
+# Template caching in production
+if IS_PRODUCTION:
+    TEMPLATES[0]['OPTIONS']['loaders'] = [
+        ('django.template.loaders.cached.Loader', [
+            'django.template.loaders.filesystem.Loader',
+            'django.template.loaders.app_directories.Loader',
+        ]),
+    ]
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# =======================
+# CUSTOM APPLICATION SETTINGS
+# =======================
+
+# Verification code settings
+VERIFICATION_CODE_LENGTH = 6
+VERIFICATION_CODE_EXPIRY_MINUTES = 10
+
+# Inventory settings
+INVENTORY_LOW_STOCK_THRESHOLD = 10
+INVENTORY_CRITICAL_STOCK_THRESHOLD = 5
+
+# Session settings
+SESSION_TIMEOUT_REDIRECT = '/accounts/login/'
+
+print(f"=== Teba Settings Loaded ===")
+print(f"Environment: {'PRODUCTION' if IS_PRODUCTION else 'DEVELOPMENT'}")
+print(f"Debug: {DEBUG}")
+print(f"Domain: {SITE_DOMAIN}")
+print(f"Email Backend: {EMAIL_BACKEND}")
+print(f"Database: {DATABASES['default']['ENGINE']}")
+print("=============================")
