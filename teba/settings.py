@@ -245,14 +245,28 @@ LOGIN_URL = '/accounts/login/'
 ACCOUNT_SIGNUP_REDIRECT_URL = '/core/verify-email-signup/'
 ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/core/verify-email-signup/'
 
+
 # =======================
-# EMAIL CONFIGURATION
+# EMAIL CONFIGURATION - REAL EMAILS
 # =======================
 
-# Use console backend for now (as in your working version)
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'tebaspprt@gmail.com')
-SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+if SENDGRID_API_KEY and IS_PRODUCTION:
+    # Production - SendGrid SMTP
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = 'smtp.sendgrid.net'
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = 'apikey'
+    EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
+    print("=== USING SENDGRID FOR EMAILS ===")
+else:
+    # Development - Console emails (fallback)
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    print("=== USING CONSOLE EMAILS - Check Railway logs for codes ===")
+
 
 # =======================
 # SITE CONFIGURATION
