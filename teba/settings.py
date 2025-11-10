@@ -1,5 +1,5 @@
 """
-Django settings for teba project - OPTIMIZED FOR RAILWAY & SENDGRID
+Django settings for teba project - OPTIMIZED FOR RAILWAY
 """
 
 from pathlib import Path
@@ -100,7 +100,7 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'teba.urls'
 
 # =======================
-# TEMPLATES - FIXED CONFIGURATION (REMOVED MISSING CONTEXT PROCESSOR)
+# TEMPLATES - FIXED CONFIGURATION
 # =======================
 
 TEMPLATES = [
@@ -115,7 +115,6 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.user_locations',
-                # REMOVED: 'core.context_processors.site_info' - was causing error
             ],
         },
     },
@@ -291,28 +290,13 @@ ACCOUNT_SIGNUP_REDIRECT_URL = '/core/verify-email-signup/'
 ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/core/verify-email-signup/'
 
 # =======================
-# EMAIL CONFIGURATION
+# EMAIL CONFIGURATION - SIMPLE CONSOLE BACKEND
 # =======================
 
-# Email Configuration - Console for debugging
-if SENDGRID_API_KEY:
-    # Production - SendGrid SMTP
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = 'smtp.sendgrid.net'
-    EMAIL_PORT = 587
-    EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = 'apikey'
-    EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
-else:
-    # Development - Console emails
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
+# Simple email configuration - console only
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'tebaspprt@gmail.com')
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
-
-
-# Console backend for debugging
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 # =======================
 # SITE CONFIGURATION
