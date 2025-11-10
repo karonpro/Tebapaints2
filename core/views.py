@@ -14,7 +14,7 @@ from django.core.mail import send_mail
 from .models import Location, UserProfile, LoginVerification
 from .forms import CustomUserCreationForm, CustomUserChangeForm, UserProfileForm
 from .utils import get_user_locations, can_user_access_location
-from .emails import send_verification_code_email
+
 from allauth.account.views import LoginView as AllauthLoginView
 
 # Async Email Sending Function
@@ -741,4 +741,75 @@ def session_keepalive(request):
         'status': 'success', 
         'message': 'Session kept alive',
         'timestamp': timezone.now().isoformat()
+    })
+
+from django.core.mail import EmailMessage
+from django.http import JsonResponse, HttpResponse
+from django.conf import settings
+import logging
+
+logger = logging.getLogger(__name__)
+
+def test_email_setup(request):
+    """Test basic email functionality"""
+    try:
+        email = EmailMessage(
+            subject='🧪 Teba System - Email Test',
+            body='If you receive this, SendGrid is working correctly!',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[settings.ADMIN_EMAIL],
+        )
+        email.send(fail_silently=False)
+        
+        return JsonResponse({
+            'status': 'success', 
+            'message': '✅ Test email sent successfully!',
+            'from_email': settings.DEFAULT_FROM_EMAIL,
+            'to_email': settings.ADMIN_EMAIL,
+            'sendgrid_key': '✅ Set' if settings.SENDGRID_API_KEY else '❌ Missing'
+        })
+    except Exception as e:
+        logger.error(f"Test email failed: {e}")
+        return JsonResponse({
+            'status': 'error', 
+            'message': str(e),
+            'from_email': settings.DEFAULT_FROM_EMAIL,
+            'sendgrid_key': '✅ Set' if settings.SENDGRID_API_KEY else '❌ Missing'
+        })
+
+def test_verification_email(request):
+    """Test verification email (like what users receive)"""
+    try:
+        from core.adapters import CustomAccountAdapter
+        
+        # Create a test user or use current user
+        from django.contrib.auth.models import User
+        test_user = User.objects.filter(email=settings.ADMIN_EMAIL).first()
+        if not test_user:
+            test_user = User.objects.first()
+        
+        if not test_user:
+            return JsonResponse({'status': 'error', 'message': 'No users found to test with'})
+        
+        verification_code = "123456"  # Test code
+        adapter = CustomAccountAdapter()
+        adapter._send_verification_email(test_user, verification_code, 'login')
+        
+        return JsonResponse({
+            'status': 'success', 
+            'message': '✅ Verification email test sent!',
+            'to_user': test_user.email,
+            'verification_code': verification_code
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+def test_environment(request):
+    """Check environment variables"""
+    return JsonResponse({
+        'sendgrid_api_key_set': bool(settings.SENDGRID_API_KEY),
+        'from_email': settings.DEFAULT_FROM_EMAIL,
+        'admin_email': settings.ADMIN_EMAIL,
+        'email_backend': settings.EMAIL_BACKEND,
+        'debug_mode': settings.DEBUG
     })
