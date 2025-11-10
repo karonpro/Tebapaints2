@@ -240,7 +240,7 @@ CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = 'Lax'
 
 # =======================
-# AXES (Login Security)
+# AXES (Login Security) - UPDATED
 # =======================
 
 AXES_ENABLED = True
@@ -253,28 +253,30 @@ AXES_NEVER_LOCKOUT_WHITELIST = [
     '/core/verify-email-signup/',
     '/core/session-test/',
 ]
-AXES_USE_USER_AGENT = True
+# Removed deprecated AXES_USE_USER_AGENT
 AXES_LOCKOUT_PARAMETERS = ['ip_address', 'username']
 
 # =======================
-# ALLAUTH CONFIGURATION - UPDATED
+# ALLAUTH CONFIGURATION - MODERN CONFIG (NO DEPRECATION WARNINGS)
 # =======================
 
 SITE_ID = 1
 
-# Email & Authentication - FIXED
+# Modern AllAuth configuration (no deprecated settings)
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_AUTHENTICATION_METHOD = 'email'
 ACCOUNT_EMAIL_SUBJECT_PREFIX = '[Teba Paint Center] '
 ACCOUNT_ADAPTER = 'core.adapters.CustomAccountAdapter'
 ACCOUNT_LOGOUT_ON_GET = False
 ACCOUNT_SESSION_REMEMBER = True
 
-# Modern authentication - FIXED
-ACCOUNT_USERNAME_REQUIRED = False
-ACCOUNT_USER_MODEL_USERNAME_FIELD = None
-ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
+# Modern authentication - using only non-deprecated settings
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']  # This replaces the deprecated ones
+ACCOUNT_LOGIN_METHODS = {'email'}  # Modern way to specify login with email
+
+# Remove all deprecated settings:
+# ACCOUNT_USERNAME_REQUIRED = False  # DEPRECATED
+# ACCOUNT_AUTHENTICATION_METHOD = 'email'  # DEPRECATED  
+# ACCOUNT_EMAIL_REQUIRED = True  # DEPRECATED
 
 # Rate limiting
 ACCOUNT_RATE_LIMITS = {
@@ -299,18 +301,18 @@ ACCOUNT_SIGNUP_REDIRECT_URL = '/core/verify-email-signup/'
 ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/core/verify-email-signup/'
 
 # =======================
-# EMAIL CONFIGURATION - FIXED
+# EMAIL CONFIGURATION
 # =======================
 
-# Email Configuration - PRIORITIZE CONSOLE FOR DEBUGGING
+# Email Configuration - Console for debugging
 SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'tebaspprt@gmail.com')
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
-# TEMPORARY: Always use console backend for debugging
+# Console backend for debugging (emails appear in Railway logs)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-# When ready to switch to SendGrid, use this:
+# When ready for production emails, switch to this:
 """
 if SENDGRID_API_KEY and IS_PRODUCTION:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -371,9 +373,6 @@ if not IS_PRODUCTION:
 # CUSTOM SETTINGS
 # =======================
 
-# Custom user model (if you have one)
-# AUTH_USER_MODEL = 'core.CustomUser'
-
 # File upload settings
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -396,7 +395,7 @@ if IS_PRODUCTION:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # =======================
-# LOGGING - ENHANCED
+# LOGGING
 # =======================
 
 LOGGING = {
@@ -404,29 +403,19 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'format': '{levelname} {asctime} {module} {message}',
             'style': '{',
         },
         'simple': {
             'format': '{levelname} {message}',
             'style': '{',
         },
-        'django.server': {
-            '()': 'django.utils.log.ServerFormatter',
-            'format': '[{server_time}] {message}',
-            'style': '{',
-        }
     },
     'handlers': {
         'console': {
             'level': 'INFO',
             'class': 'logging.StreamHandler',
             'formatter': 'verbose' if IS_PRODUCTION else 'simple',
-        },
-        'django.server': {
-            'level': 'INFO',
-            'class': 'logging.StreamHandler',
-            'formatter': 'django.server',
         },
     },
     'root': {
@@ -439,36 +428,13 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
-        'django.server': {
-            'handlers': ['django.server'],
-            'level': 'INFO',
-            'propagate': False,
-        },
         'core': {
             'handlers': ['console'],
             'level': 'DEBUG' if not IS_PRODUCTION else 'INFO',
             'propagate': False,
         },
-        'axes': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
-        'allauth': {
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': False,
-        },
     },
 }
-
-# =======================
-# PERFORMANCE OPTIMIZATIONS
-# =======================
-
-# Database connection persistence
-if IS_RAILWAY:
-    DATABASES['default']['CONN_MAX_AGE'] = 600
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -483,9 +449,6 @@ VERIFICATION_CODE_EXPIRY_MINUTES = 10
 # Inventory settings
 INVENTORY_LOW_STOCK_THRESHOLD = 10
 INVENTORY_CRITICAL_STOCK_THRESHOLD = 5
-
-# Session settings
-SESSION_TIMEOUT_REDIRECT = '/accounts/login/'
 
 print(f"=== Teba Settings Loaded ===")
 print(f"Environment: {'PRODUCTION' if IS_PRODUCTION else 'DEVELOPMENT'}")
