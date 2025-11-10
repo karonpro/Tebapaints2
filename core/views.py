@@ -813,3 +813,20 @@ def test_environment(request):
         'email_backend': settings.EMAIL_BACKEND,
         'debug_mode': settings.DEBUG
     })
+
+# core/views.py
+from django.http import HttpResponse
+from django.views.decorators.csrf import csrf_exempt
+
+@csrf_exempt
+def debug_info(request):
+    """Debug view to check what's happening"""
+    info = f"""
+    <h1>Debug Info</h1>
+    <p>User: {request.user}</p>
+    <p>Authenticated: {request.user.is_authenticated}</p>
+    <p>Path: {request.path}</p>
+    <p>Session: {request.session}</p>
+    <p>Headers: {dict(request.headers)}</p>
+    """
+    return HttpResponse(info)
