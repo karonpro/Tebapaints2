@@ -7,6 +7,10 @@ from django.http import HttpResponse
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 
+
+
+app_name = 'core'  # ADD THIS LINE for namespace support
+
 @csrf_exempt
 def test_email(request):
     """Test email functionality"""
@@ -27,7 +31,7 @@ urlpatterns = [
     path('accounts/', include('allauth.urls')),
     path('inventory/', include('inventory.urls')),
     path('transactions/', include('transactions.urls')),
-    path('core/', include('core.urls')),
+    path('test-email/', views.test_email, name='test_email'),  # If you added it heath('core/', include('core.urls')),
     
     # Test email endpoint
     path('test-email/', test_email, name='test_email'),
