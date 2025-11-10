@@ -814,20 +814,17 @@ def test_environment(request):
         'debug_mode': settings.DEBUG
     })
 
-# core/views.py
-from django.core.mail import send_mail
-from django.http import HttpResponse
-from django.conf import settings
-
+@csrf_exempt
 def test_email(request):
+    """Test email functionality"""
     try:
-        send_mail(
-            'Test Email from Teba',
-            'This is a test email from your Teba application.',
+        result = send_mail(
+            'Test Email from Teba Paint Center',
+            'This is a test email from your Teba application. If you receive this, email configuration is working!',
             settings.DEFAULT_FROM_EMAIL,
             ['kaggaronald1@gmail.com'],  # Your email
             fail_silently=False,
         )
-        return HttpResponse("Test email sent successfully!")
+        return HttpResponse(f"✅ Test email sent successfully! Result: {result}")
     except Exception as e:
-        return HttpResponse(f"Email failed: {str(e)}")
+        return HttpResponse(f"❌ Email failed: {str(e)}")
