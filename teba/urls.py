@@ -5,7 +5,7 @@ from django.views.generic import TemplateView
 from django.shortcuts import redirect
 from core.views import CustomLoginView  # ADD THIS IMPORT
 from django.conf import settings  # ADD THIS IMPORT
-
+from core.views import test_email  # ADD TH
 urlpatterns = [
     path('admin/', admin.site.urls),
     
