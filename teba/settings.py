@@ -33,9 +33,8 @@ if not SECRET_KEY:
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true' and not IS_PRODUCTION
 
 if IS_RAILWAY:
-    # Railway automatically sets RAILWAY_STATIC_URL
     railway_domain = os.getenv('RAILWAY_STATIC_URL', 'your-app.up.railway.app')
-    ALLOWED_HOSTS = [railway_domain, 'localhost', '127.0.0.1']
+    ALLOWED_HOSTS = [railway_domain, 'localhost', '127.0.0.1', '0.0.0.0']
     CSRF_TRUSTED_ORIGINS = [f"https://{railway_domain}"]
 else:
     ALLOWED_HOSTS = ['*']
@@ -50,7 +49,6 @@ else:
 # =======================
 
 INSTALLED_APPS = [
-    # Django Core
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -60,7 +58,6 @@ INSTALLED_APPS = [
     'django.contrib.humanize',
     'django.contrib.sites',
 
-    # Third Party
     'rest_framework',
     'rest_framework.authtoken',
     'allauth',
@@ -68,7 +65,6 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'axes',
 
-    # Local Apps
     'core',
     'transactions',
     'inventory',
@@ -88,11 +84,9 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 
-    # Third Party
     'allauth.account.middleware.AccountMiddleware',
     'axes.middleware.AxesMiddleware',
 
-    # Custom (keep these at the end)
     'core.middleware.SessionErrorMiddleware',
     'core.middleware.LocationAccessMiddleware',
 ]
@@ -100,14 +94,14 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'teba.urls'
 
 # =======================
-# TEMPLATES
+# TEMPLATES - KEEP SIMPLE (NO CACHING)
 # =======================
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [BASE_DIR / 'templates', BASE_DIR / 'core' / 'templates'],
-        'APP_DIRS': True,
+        'APP_DIRS': True,  # KEEP THIS SIMPLE - NO CACHED LOADERS
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
@@ -123,11 +117,10 @@ TEMPLATES = [
 WSGI_APPLICATION = 'teba.wsgi.application'
 
 # =======================
-# DATABASE - OPTIMIZED FOR RAILWAY (FIXED)
+# DATABASE
 # =======================
 
 if IS_RAILWAY:
-    # Railway PostgreSQL - FIXED VERSION
     import dj_database_url
     DATABASES = {
         'default': dj_database_url.config(
@@ -136,7 +129,6 @@ if IS_RAILWAY:
         )
     }
 else:
-    # Development - SQLite
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -167,7 +159,7 @@ USE_I18N = True
 USE_TZ = True
 
 # =======================
-# STATIC FILES - OPTIMIZED FOR RAILWAY
+# STATIC FILES
 # =======================
 
 STATIC_URL = '/static/'
@@ -189,10 +181,9 @@ AUTHENTICATION_BACKENDS = [
 # =======================
 
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_AGE = 1800  # 30 minutes
+SESSION_COOKIE_AGE = 1800
 SESSION_SAVE_EVERY_REQUEST = True
 
-# Production security
 if IS_PRODUCTION:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
@@ -208,22 +199,22 @@ CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = 'Lax'
 
 # =======================
-# AXES (Login Security)
+# AXES
 # =======================
 
 AXES_ENABLED = True
 AXES_FAILURE_LIMIT = 5
-AXES_COOLOFF_TIME = 1  # 1 hour
+AXES_COOLOFF_TIME = 1
 AXES_RESET_ON_SUCCESS = True
 AXES_LOCKOUT_TEMPLATE = 'account/lockout.html'
-AXES_NEVER_LOCKOUT_URLS = [
+AXES_NEVER_LOCKOUT_WHITELIST = [
     '/core/verify-login/',
     '/core/verify-email-signup/',
     '/core/session-test/',
 ]
 
 # =======================
-# ALLAUTH CONFIGURATION
+# ALLAUTH CONFIGURATION - CRITICAL PART
 # =======================
 
 SITE_ID = 1
@@ -241,14 +232,6 @@ ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 
-# Rate limiting
-ACCOUNT_RATE_LIMITS = {
-    'login_failed': '5/5m',
-    'confirm_email': '3/1h',
-    'signup': '10/1h',
-    'password_reset': '3/1h',
-}
-
 # Security
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 1
 ACCOUNT_PASSWORD_MIN_LENGTH = 8
@@ -263,24 +246,11 @@ ACCOUNT_SIGNUP_REDIRECT_URL = '/core/verify-email-signup/'
 ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/core/verify-email-signup/'
 
 # =======================
-# EMAIL - SENDGRID CONFIGURATION
+# EMAIL CONFIGURATION
 # =======================
 
-# SendGrid Configuration
-SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
-
-if SENDGRID_API_KEY:
-    # Production - SendGrid SMTP
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = 'smtp.sendgrid.net'
-    EMAIL_PORT = 587
-    EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = 'apikey'
-    EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
-else:
-    # Development - Console emails
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
+# Use console backend for now (as in your working version)
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'tebaspprt@gmail.com')
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
@@ -296,70 +266,13 @@ else:
 
 SUPPORT_EMAIL = 'tebaspprt@gmail.com'
 ADMIN_EMAIL = 'tebaspprt@gmail.com'
-ADMINS = [('Admin', ADMIN_EMAIL)]
-MANAGERS = ADMINS
-
-# =======================
-# REST FRAMEWORK
-# =======================
-
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.TokenAuthentication',
-    ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20,
-}
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# =======================
-# LOGGING
-# =======================
-
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{'
-        },
-        'simple': {
-            'format': '{levelname} {message}',
-            'style': '{'
-        },
-    },
-    'handlers': {
-        'console': {
-            'level': 'INFO',
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose' if IS_PRODUCTION else 'simple',
-        },
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
-    },
-    'loggers': {
-        'django': {
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'core': {
-            'handlers': ['console'],
-            'level': 'DEBUG' if not IS_PRODUCTION else 'INFO',
-            'propagate': False,
-        },
-        'axes': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
-    },
-}
+print(f"=== Teba Settings Loaded ===")
+print(f"Environment: {'PRODUCTION' if IS_PRODUCTION else 'DEVELOPMENT'}")
+print(f"Debug: {DEBUG}")
+print(f"Domain: {SITE_DOMAIN}")
+print(f"Email Backend: {EMAIL_BACKEND}")
+print(f"Database: {DATABASES['default']['ENGINE']}")
+print("=============================")
