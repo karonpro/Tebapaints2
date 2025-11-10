@@ -100,14 +100,14 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'teba.urls'
 
 # =======================
-# TEMPLATES
+# TEMPLATES - FIXED CONFIGURATION
 # =======================
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [BASE_DIR / 'templates', BASE_DIR / 'core' / 'templates'],
-        'APP_DIRS': True,
+        'APP_DIRS': True,  # This will be handled conditionally below
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
@@ -121,14 +121,28 @@ TEMPLATES = [
     },
 ]
 
+# Template caching in production - FIXED VERSION
+if IS_PRODUCTION:
+    # In production: use cached template loader for better performance
+    TEMPLATES[0]['APP_DIRS'] = False
+    TEMPLATES[0]['OPTIONS']['loaders'] = [
+        ('django.template.loaders.cached.Loader', [
+            'django.template.loaders.filesystem.Loader',
+            'django.template.loaders.app_directories.Loader',
+        ]),
+    ]
+else:
+    # In development: use regular loaders with auto-reload
+    TEMPLATES[0]['APP_DIRS'] = True
+
 WSGI_APPLICATION = 'teba.wsgi.application'
 
 # =======================
-# DATABASE - OPTIMIZED FOR RAILWAY (FIXED)
+# DATABASE - OPTIMIZED FOR RAILWAY
 # =======================
 
 if IS_RAILWAY:
-    # Railway PostgreSQL - FIXED VERSION
+    # Railway PostgreSQL
     import dj_database_url
     DATABASES = {
         'default': dj_database_url.config(
@@ -456,15 +470,6 @@ LOGGING = {
 if IS_RAILWAY:
     DATABASES['default']['CONN_MAX_AGE'] = 600
 
-# Template caching in production
-if IS_PRODUCTION:
-    TEMPLATES[0]['OPTIONS']['loaders'] = [
-        ('django.template.loaders.cached.Loader', [
-            'django.template.loaders.filesystem.Loader',
-            'django.template.loaders.app_directories.Loader',
-        ]),
-    ]
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # =======================
@@ -488,4 +493,5 @@ print(f"Debug: {DEBUG}")
 print(f"Domain: {SITE_DOMAIN}")
 print(f"Email Backend: {EMAIL_BACKEND}")
 print(f"Database: {DATABASES['default']['ENGINE']}")
+print(f"Template Caching: {'ENABLED' if IS_PRODUCTION else 'DISABLED'}")
 print("=============================")
