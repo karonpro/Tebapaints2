@@ -100,14 +100,14 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'teba.urls'
 
 # =======================
-# TEMPLATES - FIXED CONFIGURATION
+# TEMPLATES - FIXED CONFIGURATION (REMOVED MISSING CONTEXT PROCESSOR)
 # =======================
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [BASE_DIR / 'templates', BASE_DIR / 'core' / 'templates'],
-        'APP_DIRS': True,  # This will be handled conditionally below
+        'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
@@ -115,15 +115,14 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.user_locations',
-                'core.context_processors.site_info',
+                # REMOVED: 'core.context_processors.site_info' - was causing error
             ],
         },
     },
 ]
 
-# Template caching in production - FIXED VERSION
+# Template caching in production
 if IS_PRODUCTION:
-    # In production: use cached template loader for better performance
     TEMPLATES[0]['APP_DIRS'] = False
     TEMPLATES[0]['OPTIONS']['loaders'] = [
         ('django.template.loaders.cached.Loader', [
@@ -131,9 +130,6 @@ if IS_PRODUCTION:
             'django.template.loaders.app_directories.Loader',
         ]),
     ]
-else:
-    # In development: use regular loaders with auto-reload
-    TEMPLATES[0]['APP_DIRS'] = True
 
 WSGI_APPLICATION = 'teba.wsgi.application'
 
@@ -240,7 +236,7 @@ CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = 'Lax'
 
 # =======================
-# AXES (Login Security) - UPDATED
+# AXES (Login Security)
 # =======================
 
 AXES_ENABLED = True
@@ -253,30 +249,24 @@ AXES_NEVER_LOCKOUT_WHITELIST = [
     '/core/verify-email-signup/',
     '/core/session-test/',
 ]
-# Removed deprecated AXES_USE_USER_AGENT
 AXES_LOCKOUT_PARAMETERS = ['ip_address', 'username']
 
 # =======================
-# ALLAUTH CONFIGURATION - MODERN CONFIG (NO DEPRECATION WARNINGS)
+# ALLAUTH CONFIGURATION - MODERN CONFIG
 # =======================
 
 SITE_ID = 1
 
-# Modern AllAuth configuration (no deprecated settings)
+# Modern AllAuth configuration
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 ACCOUNT_EMAIL_SUBJECT_PREFIX = '[Teba Paint Center] '
 ACCOUNT_ADAPTER = 'core.adapters.CustomAccountAdapter'
 ACCOUNT_LOGOUT_ON_GET = False
 ACCOUNT_SESSION_REMEMBER = True
 
-# Modern authentication - using only non-deprecated settings
-ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']  # This replaces the deprecated ones
-ACCOUNT_LOGIN_METHODS = {'email'}  # Modern way to specify login with email
-
-# Remove all deprecated settings:
-# ACCOUNT_USERNAME_REQUIRED = False  # DEPRECATED
-# ACCOUNT_AUTHENTICATION_METHOD = 'email'  # DEPRECATED  
-# ACCOUNT_EMAIL_REQUIRED = True  # DEPRECATED
+# Modern authentication
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
+ACCOUNT_LOGIN_METHODS = {'email'}
 
 # Rate limiting
 ACCOUNT_RATE_LIMITS = {
@@ -309,22 +299,8 @@ SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'tebaspprt@gmail.com')
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
-# Console backend for debugging (emails appear in Railway logs)
+# Console backend for debugging
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
-# When ready for production emails, switch to this:
-"""
-if SENDGRID_API_KEY and IS_PRODUCTION:
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = 'smtp.sendgrid.net'
-    EMAIL_PORT = 587
-    EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = 'apikey'
-    EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
-    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'tebaspprt@gmail.com')
-else:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-"""
 
 # =======================
 # SITE CONFIGURATION
@@ -358,83 +334,11 @@ REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
     ],
-    'DEFAULT_PARSER_CLASSES': [
-        'rest_framework.parsers.JSONParser',
-        'rest_framework.parsers.FormParser',
-        'rest_framework.parsers.MultiPartParser',
-    ],
 }
 
 # Only enable browsable API in development
 if not IS_PRODUCTION:
     REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'].append('rest_framework.renderers.BrowsableAPIRenderer')
-
-# =======================
-# CUSTOM SETTINGS
-# =======================
-
-# File upload settings
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
-# Max upload size (10MB)
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760
-
-# =======================
-# SECURITY HEADERS
-# =======================
-
-if IS_PRODUCTION:
-    # Security headers
-    SECURE_HSTS_SECONDS = 31536000  # 1 year
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
-    
-    # Additional security
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-
-# =======================
-# LOGGING
-# =======================
-
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{',
-        },
-        'simple': {
-            'format': '{levelname} {message}',
-            'style': '{',
-        },
-    },
-    'handlers': {
-        'console': {
-            'level': 'INFO',
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose' if IS_PRODUCTION else 'simple',
-        },
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
-    },
-    'loggers': {
-        'django': {
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'core': {
-            'handlers': ['console'],
-            'level': 'DEBUG' if not IS_PRODUCTION else 'INFO',
-            'propagate': False,
-        },
-    },
-}
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
