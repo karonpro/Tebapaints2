@@ -295,9 +295,21 @@ ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/core/verify-email-signup/'
 # =======================
 
 # Email Configuration - Console for debugging
-SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
+if SENDGRID_API_KEY:
+    # Production - SendGrid SMTP
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = 'smtp.sendgrid.net'
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = 'apikey'
+    EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
+else:
+    # Development - Console emails
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'tebaspprt@gmail.com')
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
 
 # Console backend for debugging
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
