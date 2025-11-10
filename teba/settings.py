@@ -1,5 +1,5 @@
 """
-Django settings for teba project - OPTIMIZED FOR RAILWAY
+Django settings for teba project - OPTIMIZED FOR RAILWAY & SENDGRID
 """
 
 from pathlib import Path
@@ -35,7 +35,7 @@ DEBUG = os.getenv('DEBUG', 'False').lower() == 'true' and not IS_PRODUCTION
 if IS_RAILWAY:
     # Railway automatically sets RAILWAY_STATIC_URL
     railway_domain = os.getenv('RAILWAY_STATIC_URL', 'your-app.up.railway.app')
-    ALLOWED_HOSTS = [railway_domain, 'localhost', '127.0.0.1', '0.0.0.0']
+    ALLOWED_HOSTS = [railway_domain, 'localhost', '127.0.0.1']
     CSRF_TRUSTED_ORIGINS = [f"https://{railway_domain}"]
 else:
     ALLOWED_HOSTS = ['*']
@@ -100,7 +100,7 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'teba.urls'
 
 # =======================
-# TEMPLATES - FIXED CONFIGURATION
+# TEMPLATES
 # =======================
 
 TEMPLATES = [
@@ -120,16 +120,6 @@ TEMPLATES = [
     },
 ]
 
-# Template caching in production
-if IS_PRODUCTION:
-    TEMPLATES[0]['APP_DIRS'] = False
-    TEMPLATES[0]['OPTIONS']['loaders'] = [
-        ('django.template.loaders.cached.Loader', [
-            'django.template.loaders.filesystem.Loader',
-            'django.template.loaders.app_directories.Loader',
-        ]),
-    ]
-
 WSGI_APPLICATION = 'teba.wsgi.application'
 
 # =======================
@@ -142,6 +132,7 @@ if IS_RAILWAY:
     DATABASES = {
         'default': dj_database_url.config(
             conn_max_age=600,
+            conn_health_checks=True,
             ssl_require=True
         )
     }
@@ -160,19 +151,10 @@ else:
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
         'OPTIONS': {
             'min_length': 8,
         }
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
 
@@ -191,13 +173,7 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [
-    BASE_DIR / 'static',
-]
-
-# WhiteNoise configuration
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-WHITENOISE_MANIFEST_STRICT = False
 
 # =======================
 # AUTHENTICATION
@@ -223,11 +199,9 @@ if IS_PRODUCTION:
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
-    SECURE_SSL_REDIRECT = True
 else:
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
-    SECURE_SSL_REDIRECT = False
 
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
@@ -243,20 +217,19 @@ AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = 1  # 1 hour
 AXES_RESET_ON_SUCCESS = True
 AXES_LOCKOUT_TEMPLATE = 'account/lockout.html'
-AXES_NEVER_LOCKOUT_WHITELIST = [
+AXES_NEVER_LOCKOUT_URLS = [
     '/core/verify-login/',
     '/core/verify-email-signup/',
     '/core/session-test/',
 ]
-AXES_LOCKOUT_PARAMETERS = ['ip_address', 'username']
 
 # =======================
-# ALLAUTH CONFIGURATION - MODERN CONFIG
+# ALLAUTH CONFIGURATION
 # =======================
 
 SITE_ID = 1
 
-# Modern AllAuth configuration
+# Email & Authentication
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 ACCOUNT_EMAIL_SUBJECT_PREFIX = '[Teba Paint Center] '
 ACCOUNT_ADAPTER = 'core.adapters.CustomAccountAdapter'
@@ -264,8 +237,10 @@ ACCOUNT_LOGOUT_ON_GET = False
 ACCOUNT_SESSION_REMEMBER = True
 
 # Modern authentication
-ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_LOGIN_METHODS = {'email'}
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 
 # Rate limiting
 ACCOUNT_RATE_LIMITS = {
@@ -280,7 +255,6 @@ ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 1
 ACCOUNT_PASSWORD_MIN_LENGTH = 8
 ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = False
 ACCOUNT_CONFIRM_EMAIL_ON_GET = False
-ACCOUNT_MAX_EMAIL_ADDRESSES = 2
 
 # Redirect URLs
 LOGIN_REDIRECT_URL = '/inventory/'
@@ -290,11 +264,24 @@ ACCOUNT_SIGNUP_REDIRECT_URL = '/core/verify-email-signup/'
 ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/core/verify-email-signup/'
 
 # =======================
-# EMAIL CONFIGURATION - SIMPLE CONSOLE BACKEND
+# EMAIL - SENDGRID CONFIGURATION
 # =======================
 
-# Simple email configuration - console only
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# SendGrid Configuration
+SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
+
+if SENDGRID_API_KEY:
+    # Production - SendGrid SMTP
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = 'smtp.sendgrid.net'
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = 'apikey'
+    EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
+else:
+    # Development - Console emails
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'tebaspprt@gmail.com')
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
@@ -327,34 +314,57 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-    ],
 }
-
-# Only enable browsable API in development
-if not IS_PRODUCTION:
-    REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'].append('rest_framework.renderers.BrowsableAPIRenderer')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # =======================
-# CUSTOM APPLICATION SETTINGS
+# LOGGING
 # =======================
 
-# Verification code settings
-VERIFICATION_CODE_LENGTH = 6
-VERIFICATION_CODE_EXPIRY_MINUTES = 10
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{'
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{'
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose' if IS_PRODUCTION else 'simple',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'core': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if not IS_PRODUCTION else 'INFO',
+            'propagate': False,
+        },
+        'axes': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+}
 
-# Inventory settings
-INVENTORY_LOW_STOCK_THRESHOLD = 10
-INVENTORY_CRITICAL_STOCK_THRESHOLD = 5
-
-print(f"=== Teba Settings Loaded ===")
-print(f"Environment: {'PRODUCTION' if IS_PRODUCTION else 'DEVELOPMENT'}")
-print(f"Debug: {DEBUG}")
-print(f"Domain: {SITE_DOMAIN}")
-print(f"Email Backend: {EMAIL_BACKEND}")
-print(f"Database: {DATABASES['default']['ENGINE']}")
-print(f"Template Caching: {'ENABLED' if IS_PRODUCTION else 'DISABLED'}")
-print("=============================")
+# =======================
+# HEALTH CHECKS
+# =======================
