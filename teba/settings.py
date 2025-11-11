@@ -249,17 +249,23 @@ ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/core/verify-email-signup/'
 # =======================
 # EMAIL CONFIGURATION - GMAIL WITH SSL
 # =======================
+# Install: pip install sendgrid
+# =======================
+# EMAIL CONFIGURATION - SENDGRID API (HTTP)
+# =======================
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 465  # Use SSL port instead of 587
-EMAIL_USE_SSL = True  # Use SSL instead of TLS
-EMAIL_USE_TLS = False  # Disable TLS
-EMAIL_HOST_USER = 'tebaspprt@gmail.com'
-EMAIL_HOST_PASSWORD = os.getenv('GMAIL_APP_PASSWORD')
-DEFAULT_FROM_EMAIL = 'tebaspprt@gmail.com'
+SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 
-print("=== USING GMAIL WITH SSL (Port 465) ===")
+if SENDGRID_API_KEY:
+    # Use SendGrid Python SDK (HTTP API, not SMTP)
+    EMAIL_BACKEND = 'sgbackend.SendGridBackend'
+    SENDGRID_API_KEY = SENDGRID_API_KEY
+    DEFAULT_FROM_EMAIL = 'tebaspprt@gmail.com'
+    print("=== USING SENDGRID API (HTTP) ===")
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    print("=== USING CONSOLE EMAILS ===")
+
 # =======================
 # SITE CONFIGURATION
 # =======================
