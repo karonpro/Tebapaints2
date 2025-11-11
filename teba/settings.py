@@ -247,50 +247,19 @@ ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/core/verify-email-signup/'
 
 
 # =======================
-# EMAIL CONFIGURATION - REAL EMAILS
-# =======================
-# =======================
-# EMAIL CONFIGURATION - ENHANCED FOR DEBUGGING
-# =======================
-# =======================
-# EMAIL CONFIGURATION - GMAIL
+# EMAIL CONFIGURATION - GMAIL WITH SSL
 # =======================
 
-# =======================
-# EMAIL CONFIGURATION - GMAIL WITH FALLBACK
-# =======================
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 465  # Use SSL port instead of 587
+EMAIL_USE_SSL = True  # Use SSL instead of TLS
+EMAIL_USE_TLS = False  # Disable TLS
+EMAIL_HOST_USER = 'tebaspprt@gmail.com'
+EMAIL_HOST_PASSWORD = os.getenv('GMAIL_APP_PASSWORD')
+DEFAULT_FROM_EMAIL = 'tebaspprt@gmail.com'
 
-GMAIL_APP_PASSWORD = os.getenv('GMAIL_APP_PASSWORD')
-SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
-
-if GMAIL_APP_PASSWORD:
-    # Use Gmail
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = 'smtp.gmail.com'
-    EMAIL_PORT = 587
-    EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = 'tebaspprt@gmail.com'
-    EMAIL_HOST_PASSWORD = GMAIL_APP_PASSWORD
-    DEFAULT_FROM_EMAIL = 'tebaspprt@gmail.com'
-    print("=== USING GMAIL FOR EMAILS ===")
-    
-elif SENDGRID_API_KEY and IS_PRODUCTION:
-    # Use SendGrid
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = 'smtp.sendgrid.net'
-    EMAIL_PORT = 587
-    EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = 'apikey'
-    EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
-    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'tebaspprt@gmail.com')
-    print("=== USING SENDGRID FOR EMAILS ===")
-    
-else:
-    # Fallback to console
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    DEFAULT_FROM_EMAIL = 'tebaspprt@gmail.com'
-    print("=== USING CONSOLE EMAILS ===")
-
+print("=== USING GMAIL WITH SSL (Port 465) ===")
 # =======================
 # SITE CONFIGURATION
 # =======================
