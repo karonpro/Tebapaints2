@@ -582,8 +582,21 @@
                             </a></li>
                             
                             <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-warning">Stock Management</h6></li>
                             <li><a class="dropdown-item" href="{% url 'inventory:stocktake_list' %}">
-                                <i class="fas fa-clipboard-check me-2"></i>Stocktake
+                                <i class="fas fa-clipboard-list me-2"></i>Stocktakes
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:stocktake_create' %}">
+                                <i class="fas fa-plus-circle me-2"></i>New Stocktake
+                            </a></li>
+                            
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-info">Data Management</h6></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:import_products' %}">
+                                <i class="fas fa-file-import me-2"></i>Import Products
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:export_products' %}">
+                                <i class="fas fa-file-export me-2"></i>Export Template
                             </a></li>
                         </ul>
                     </li>
@@ -603,7 +616,7 @@
                         </ul>
                     </li>
 
-                    <!-- Reports Mega Menu - UPDATED WITH ALL REPORTS -->
+                    <!-- Reports Mega Menu - COMPLETE VERSION -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-chart-bar me-1"></i>Reports
@@ -641,6 +654,9 @@
                             <li><a class="dropdown-item" href="{% url 'inventory:purchase_trend_analysis_report' %}">
                                 <i class="fas fa-chart-line me-2"></i>Purchase Trend Analysis
                             </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:purchase_price_variance_report' %}">
+                                <i class="fas fa-chart-line me-2"></i>Purchase Price Variance
+                            </a></li>
 
                             <!-- Transfer Reports -->
                             <li><h6 class="dropdown-header text-info"><i class="fas fa-exchange-alt me-1"></i>Transfer Reports</h6></li>
@@ -671,14 +687,38 @@
                             <li><a class="dropdown-item" href="{% url 'inventory:stock_movement_report' %}">
                                 <i class="fas fa-arrows-alt-h me-2"></i>Stock Movement
                             </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:abc_analysis_report' %}">
+                                <i class="fas fa-sort-alpha-down me-2"></i>ABC Analysis
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:stockout_analysis_report' %}">
+                                <i class="fas fa-exclamation-triangle me-2"></i>Stockout Analysis
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:slow_moving_items_report' %}">
+                                <i class="fas fa-truck-loading me-2"></i>Slow Moving Items
+                            </a></li>
+
+                            <!-- Financial Analysis Reports -->
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-success"><i class="fas fa-chart-line me-1"></i>Financial Analysis</h6></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:cash_cycle_report' %}">
+                                <i class="fas fa-money-bill-wave me-2"></i>Cash Cycle Analysis
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:product_profitability_report' %}">
+                                <i class="fas fa-chart-pie me-2"></i>Product Profitability
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:gross_margin_report' %}">
+                                <i class="fas fa-percentage me-2"></i>Gross Margin Analysis
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:supplier_scorecard_report' %}">
+                                <i class="fas fa-clipboard-list me-2"></i>Supplier Scorecard
+                            </a></li>
 
                             <!-- Product Movement Reports -->
+                            <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-danger"><i class="fas fa-history me-1"></i>Product Tracking</h6></li>
-                            {% if product_id %}
-                            <li><a class="dropdown-item" href="{% url 'inventory:product_movement_report' product_id %}">
+                            <li><a class="dropdown-item" href="#" onclick="showProductSelector()">
                                 <i class="fas fa-search me-2"></i>Product Movement Report
                             </a></li>
-                            {% endif %}
 
                             <!-- Financial Reports -->
                             <li><hr class="dropdown-divider"></li>
@@ -1122,6 +1162,14 @@
         function getCSRFToken() {
             return document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
                    document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+        }
+
+        // Product Movement Report Selector
+        function showProductSelector() {
+            const productId = prompt('Enter Product ID for movement report:');
+            if (productId) {
+                window.location.href = `/inventory/products/${productId}/movement-report/`;
+            }
         }
 
         // Better active navigation highlighting
