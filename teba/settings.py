@@ -249,23 +249,30 @@ ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/core/verify-email-signup/'
 # =======================
 # EMAIL CONFIGURATION - GMAIL WITH SSL
 # =======================
-# Install: pip install sendgrid
 # =======================
-# EMAIL CONFIGURATION - SENDGRID API (HTTP)
+# EMAIL CONFIGURATION - RESEND
 # =======================
 
-SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
+RESEND_API_KEY = os.getenv('RESEND_API_KEY')
 
-if SENDGRID_API_KEY:
-    # Use SendGrid Python SDK (HTTP API, not SMTP)
-    EMAIL_BACKEND = 'sgbackend.SendGridBackend'
-    SENDGRID_API_KEY = SENDGRID_API_KEY
-    DEFAULT_FROM_EMAIL = 'tebaspprt@gmail.com'
-    print("=== USING SENDGRID API (HTTP) ===")
+if RESEND_API_KEY:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = 'smtp.resend.com'
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = 'resend'
+    EMAIL_HOST_PASSWORD = RESEND_API_KEY
+    DEFAULT_FROM_EMAIL = 'onboarding@resend.dev'  # Start with this
+    SERVER_EMAIL = 'onboarding@resend.dev'
+    
+    print("=== USING RESEND ===")
+    print("✅ Resend configured successfully!")
+    print(f"From Email: {DEFAULT_FROM_EMAIL}")
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    DEFAULT_FROM_EMAIL = 'tebaspprt@gmail.com'
     print("=== USING CONSOLE EMAILS ===")
-
+    print("❌ RESEND_API_KEY not found - using console emails")
 # =======================
 # SITE CONFIGURATION
 # =======================
