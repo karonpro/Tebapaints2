@@ -1,0 +1,95 @@
+<!-- templates/inventory/reports/supplier_scorecard.html -->
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Supplier Scorecard - Teba Inventory{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="{% url 'inventory:reports_dashboard' %}">Reports</a></li>
+<li class="breadcrumb-item active">Supplier Scorecard</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-clipboard-check me-2"></i>Supplier Performance Scorecard
+                </h5>
+                <div class="no-print">
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="printReport()">
+                        <i class="fas fa-print me-1"></i>Print
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="exportReport('csv')">
+                        <i class="fas fa-download me-1"></i>Export CSV
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Filters -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <form method="get" class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Date From</label>
+                                <input type="date" name="date_from" value="{{ date_from }}" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Date To</label>
+                                <input type="date" name="date_to" value="{{ date_to }}" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Min Orders</label>
+                                <input type="number" name="min_orders" value="{{ min_orders }}" class="form-control" min="1">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Analysis Period</label>
+                                <div class="form-text">
+                                    {{ total_suppliers }} suppliers analyzed
+                                </div>
+                            </div>
+                            <div class="col-md-12 mt-3">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-filter me-1"></i>Apply Filters
+                                </button>
+                                <a href="{% url 'inventory:supplier_scorecard_report' %}" class="btn btn-outline-secondary ms-2">
+                                    <i class="fas fa-redo me-1"></i>Reset
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Performance Summary -->
+                <div class="row mb-4">
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-success h-100">
+                            <div class="card-body text-center">
+                                <div class="metric-value text-success">{{ excellent_count }}</div>
+                                <div class="metric-label">Excellent</div>
+                                <small class="text-muted">≥90% score</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-info h-100">
+                            <div class="card-body text-center">
+                                <div class="metric-value text-info">{{ good_count }}</div>
+                                <div class="metric-label">Good</div>
+                                <small class="text-muted">75-89%</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-warning h-100">
+                            <div class="card-body text-center">
+                                <div class="metric-value text-warning">{{ fair_count }}</div>
+                                <div class="metric-label">Fair</div>
+                                <small class="text-muted">60-74%</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-danger h-100">
+                            <div class="card-body text-center
