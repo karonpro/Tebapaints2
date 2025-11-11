@@ -17,31 +17,111 @@ from .utils import get_user_locations, can_user_access_location
 
 from allauth.account.views import LoginView as AllauthLoginView
 
-# Async Email Sending Function
+import resend
+import os
+from django.conf import settings
+
+def send_verification_email(to_email, verification_code, email_type='login'):
+    """Send verification email using Resend API"""
+    try:
+        resend.api_key = os.getenv('RESEND_API_KEY')
+        
+        if email_type == 'signup':
+            subject = "Welcome to Teba Paint Center - Verify Your Email"
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px; }}
+                    .header {{ background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }}
+                    .code {{ font-size: 32px; font-weight: bold; color: #2563eb; text-align: center; margin: 30px 0; padding: 15px; background: #f3f4f6; border-radius: 5px; }}
+                    .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #666; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>Welcome to Teba Paint Center! 🎨</h1>
+                    </div>
+                    <p>Hello!</p>
+                    <p>Thank you for signing up. To complete your registration, please use the verification code below:</p>
+                    <div class="code">{verification_code}</div>
+                    <p>This code will expire in 10 minutes.</p>
+                    <p>If you didn't create an account with Teba Paint Center, please ignore this email.</p>
+                    <div class="footer">
+                        <p>Best regards,<br>The Teba Paint Center Team</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+        else:
+            subject = "Your Verification Code - Teba Paint Center"
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px; }}
+                    .header {{ background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }}
+                    .code {{ font-size: 32px; font-weight: bold; color: #2563eb; text-align: center; margin: 30px 0; padding: 15px; background: #f3f4f6; border-radius: 5px; }}
+                    .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #666; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>Teba Paint Center</h1>
+                    </div>
+                    <p>Hello!</p>
+                    <p>Your verification code is:</p>
+                    <div class="code">{verification_code}</div>
+                    <p>This code will expire in 10 minutes.</p>
+                    <p>If you didn't request this code, please ignore this email.</p>
+                    <div class="footer">
+                        <p>Best regards,<br>The Teba Paint Center Team</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+        
+        params = {
+            "from": "Teba Paint Center <onboarding@resend.dev>",
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content,
+        }
+
+        response = resend.Emails.send(params)
+        print(f"✅ Resend email sent! ID: {response['id']}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Resend email failed: {e}")
+        return False
+
+# Async Email Sending Function - UPDATED FOR RESEND
 def send_verification_email_async(user_email, verification_code, email_type='login'):
-    """Send verification email in background thread to prevent timeouts"""
+    """Send verification email using Resend API in background thread"""
     def _send_email():
         try:
             subject = 'Your Verification Code'
             if email_type == 'signup':
                 subject = 'Welcome to Teba System - Verify Your Email'
+            elif email_type == 'verification':
+                subject = 'Verify Your Email - Teba Paint Center'
             
-            message = f'''
-Your verification code is: {verification_code}
-
-This code will expire in 10 minutes.
-
-If you didn't request this code, please ignore this email.
-'''
-            
-            send_mail(
-                subject,
-                message,
-                'noreply@tebasystem.com',
-                [user_email],
-                fail_silently=False,
-            )
-            print(f"✅ Email sent successfully to {user_email}")
+            # Use Resend API instead of Django send_mail
+            success = send_verification_email(user_email, verification_code, email_type)
+            if success:
+                print(f"✅ Resend email sent successfully to {user_email}")
+            else:
+                print(f"❌ Resend email failed for {user_email}")
+                
         except Exception as e:
             print(f"❌ Email sending failed: {e}")
     
@@ -447,7 +527,7 @@ def verify_email_signup(request):
 
 def resend_signup_verification(request):
     """
-    Resend verification code during signup
+    Resend verification code during signup - UPDATED FOR RESEND
     """
     pending_email = request.session.get('pending_email')
     pending_key = request.session.get('pending_email_confirmation_key')
@@ -464,10 +544,13 @@ def resend_signup_verification(request):
         if hasattr(user, 'profile'):
             verification_code = user.profile.generate_verification_code()
             
-            # Send async email
-            send_verification_email_async(user.email, verification_code, 'signup')
+            # Send email using Resend API
+            success = send_verification_email(user.email, verification_code, 'signup')
             
-            messages.success(request, 'New verification code sent to your email!')
+            if success:
+                messages.success(request, 'New verification code sent to your email!')
+            else:
+                messages.error(request, 'Failed to send verification code. Please try again.')
         else:
             messages.error(request, 'Error resending verification code.')
             
@@ -651,7 +734,7 @@ def verify_login(request):
 
 def resend_login_code(request):
     """
-    Resend login verification code - ASYNC VERSION
+    Resend login verification code - UPDATED FOR RESEND
     """
     verification_id = request.session.get('pending_verification_id')
     
@@ -669,11 +752,14 @@ def resend_login_code(request):
             verification.is_used = False
             verification.save()
             
-            # Send email ASYNC
-            send_verification_email_async(user.email, new_code, 'login')
+            # Send email using Resend API
+            success = send_verification_email(user.email, new_code, 'login')
             
-            messages.info(request, 'New verification code sent to your email.')
-            print(f"✅ New code sent: {new_code}")
+            if success:
+                messages.info(request, 'New verification code sent to your email.')
+                print(f"✅ New code sent via Resend: {new_code}")
+            else:
+                messages.error(request, 'Failed to send verification code. Please try again.')
             
         except (LoginVerification.DoesNotExist, User.DoesNotExist):
             messages.error(request, 'Session expired. Please login again.')
@@ -829,49 +915,13 @@ def test_email(request):
     except Exception as e:
         return HttpResponse(f"❌ Email failed: {str(e)}")
 
-import resend
-import os
-from django.conf import settings
-
-def send_verification_email(to_email, verification_code):
-    """Send verification email using Resend API"""
+def test_resend_api(request):
+    """Test Resend API directly"""
     try:
-        resend.api_key = os.getenv('RESEND_API_KEY')
-        
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <style>
-                body {{ font-family: Arial, sans-serif; }}
-                .code {{ font-size: 24px; font-weight: bold; color: #2563eb; }}
-                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h2>Teba Paint Center - Verification Code</h2>
-                <p>Your verification code is:</p>
-                <div class="code">{verification_code}</div>
-                <p>This code will expire in 10 minutes.</p>
-                <p>If you didn't request this code, please ignore this email.</p>
-            </div>
-        </body>
-        </html>
-        """
-        
-        params = {
-            "from": "Teba Paint Center <onboarding@resend.dev>",
-            "to": [to_email],
-            "subject": "Your Verification Code",
-            "html": html_content,
-        }
-
-        response = resend.Emails.send(params)
-        print(f"✅ Resend email sent! ID: {response['id']}")
-        return True
-        
+        success = send_verification_email('kaggaronald1@gmail.com', '123456', 'test')
+        if success:
+            return HttpResponse("✅ Resend API test successful! Check your email.")
+        else:
+            return HttpResponse("❌ Resend API test failed - check logs")
     except Exception as e:
-        print(f"❌ Resend email failed: {e}")
-        return False
-
+        return HttpResponse(f"❌ Resend API test error: {e}")
