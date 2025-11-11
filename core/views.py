@@ -828,3 +828,50 @@ def test_email(request):
         return HttpResponse(f"✅ Test email sent successfully! Result: {result}")
     except Exception as e:
         return HttpResponse(f"❌ Email failed: {str(e)}")
+
+import resend
+import os
+from django.conf import settings
+
+def send_verification_email(to_email, verification_code):
+    """Send verification email using Resend API"""
+    try:
+        resend.api_key = os.getenv('RESEND_API_KEY')
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; }}
+                .code {{ font-size: 24px; font-weight: bold; color: #2563eb; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2>Teba Paint Center - Verification Code</h2>
+                <p>Your verification code is:</p>
+                <div class="code">{verification_code}</div>
+                <p>This code will expire in 10 minutes.</p>
+                <p>If you didn't request this code, please ignore this email.</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        params = {
+            "from": "Teba Paint Center <onboarding@resend.dev>",
+            "to": [to_email],
+            "subject": "Your Verification Code",
+            "html": html_content,
+        }
+
+        response = resend.Emails.send(params)
+        print(f"✅ Resend email sent! ID: {response['id']}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Resend email failed: {e}")
+        return False
+
