@@ -18,7 +18,7 @@ urlpatterns = [
     path('users/<int:user_id>/toggle-active/', views.user_toggle_active, name='user_toggle_active'),
     path('user-permissions/', views.user_permissions, name='user_permissions'),
     path('user-permissions/<int:user_id>/edit/', views.edit_user_permissions, name='edit_user_permissions'),
-   
+    path('test-resend-api/', test_resend_api, name='test_resend_api'),
     # Profile & Email Verification
     path('profile/', views.profile_view, name='profile'),
     path('verify-email/', views.verify_email, name='verify_email'),
