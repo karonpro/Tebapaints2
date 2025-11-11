@@ -115,7 +115,13 @@ urlpatterns = [
    path('reports/slow-moving-items/', views.slow_moving_items_report, name='slow_moving_items_report'),
    path('reports/gross-margin-analysis/', views.gross_margin_report, name='gross_margin_report'),
    path('reports/supplier-scorecard/', views.supplier_scorecard_report, name='supplier_scorecard_report'),
+# Add to inventory/urls.py in the reports section
 
+# Phase 2 Reports
+  path('reports/abc-analysis/', views.abc_analysis_report, name='abc_analysis_report'),
+  path('reports/stockout-analysis/', views.stockout_analysis_report, name='stockout_analysis_report'),
+  path('reports/cash-cycle/', views.cash_cycle_report, name='cash_cycle_report'),
+  path('reports/purchase-price-variance/', views.purchase_price_variance_report, name='purchase_price_variance_report'),
     
   path('api/customer-search/', views.customer_search_api, name='customer_search_api'),
 # Add these to your inventory/urls.py
