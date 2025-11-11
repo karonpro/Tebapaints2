@@ -6242,3 +6242,600 @@ def supplier_analysis_report(request):
     }
     
     return render(request, 'inventory/reports/supplier_analysis.html', context)
+
+# Add to inventory/views.py
+
+@login_required
+def product_profitability_report(request):
+    """Product profitability and margin analysis report"""
+    user_locations = get_user_locations(request.user)
+    
+    # Get filter parameters
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    category_id = request.GET.get('category', '')
+    min_sales = int(request.GET.get('min_sales', 0))
+    margin_threshold = int(request.GET.get('margin_threshold', 0))
+    
+    # Calculate date range (default: last 90 days)
+    if not date_from:
+        date_from = (timezone.now() - timezone.timedelta(days=90)).strftime('%Y-%m-%d')
+    if not date_to:
+        date_to = timezone.now().strftime('%Y-%m-%d')
+    
+    # Get sales data with filters
+    sales = Sale.objects.filter(
+        document_status='sent',
+        location__in=user_locations,
+        date__date__gte=date_from,
+        date__date__lte=date_to
+    )
+    
+    # Get products with sales data
+    products = Product.objects.filter(
+        saleitem__sale__in=sales
+    ).distinct()
+    
+    if category_id:
+        products = products.filter(category_id=category_id)
+    
+    profitability_data = []
+    total_revenue = 0
+    total_cost = 0
+    total_profit = 0
+    
+    for product in products:
+        # Get sales items for this product
+        sale_items = SaleItem.objects.filter(
+            sale__in=sales,
+            product=product
+        )
+        
+        total_sold = sale_items.aggregate(total=Sum('quantity'))['total'] or 0
+        total_revenue_product = sale_items.aggregate(total=Sum('total_price'))['total'] or 0
+        total_cost_product = product.cost_price * total_sold
+        total_profit_product = total_revenue_product - total_cost_product
+        
+        # Calculate margins
+        gross_margin = (total_profit_product / total_revenue_product * 100) if total_revenue_product > 0 else 0
+        markup_percentage = ((total_revenue_product - total_cost_product) / total_cost_product * 100) if total_cost_product > 0 else 0
+        
+        # Apply filters
+        if total_sold < min_sales:
+            continue
+            
+        if margin_threshold and abs(gross_margin) < margin_threshold:
+            continue
+        
+        # Get current stock value
+        current_stock = ProductStock.objects.filter(
+            product=product,
+            location__in=user_locations
+        ).aggregate(total=Sum('quantity'))['total'] or 0
+        stock_value = current_stock * float(product.cost_price)
+        
+        profitability_data.append({
+            'product': product,
+            'total_sold': total_sold,
+            'revenue': total_revenue_product,
+            'cost': total_cost_product,
+            'profit': total_profit_product,
+            'gross_margin': gross_margin,
+            'markup_percentage': markup_percentage,
+            'current_stock': current_stock,
+            'stock_value': stock_value,
+            'profit_per_unit': total_profit_product / total_sold if total_sold > 0 else 0,
+            'margin_category': 'High' if gross_margin > 30 else 'Medium' if gross_margin > 15 else 'Low'
+        })
+        
+        total_revenue += total_revenue_product
+        total_cost += total_cost_product
+        total_profit += total_profit_product
+    
+    # Sort by profitability (highest first)
+    profitability_data.sort(key=lambda x: x['profit'], reverse=True)
+    
+    # Summary statistics
+    avg_margin = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
+    high_margin_count = len([p for p in profitability_data if p['gross_margin'] > 30])
+    low_margin_count = len([p for p in profitability_data if p['gross_margin'] < 10])
+    negative_margin_count = len([p for p in profitability_data if p['gross_margin'] < 0])
+    
+    # Margin distribution
+    margin_distribution = {
+        'high': len([p for p in profitability_data if p['gross_margin'] > 30]),
+        'medium': len([p for p in profitability_data if 15 < p['gross_margin'] <= 30]),
+        'low': len([p for p in profitability_data if 0 <= p['gross_margin'] <= 15]),
+        'negative': len([p for p in profitability_data if p['gross_margin'] < 0])
+    }
+    
+    context = {
+        'profitability_data': profitability_data,
+        'total_revenue': total_revenue,
+        'total_cost': total_cost,
+        'total_profit': total_profit,
+        'avg_margin': avg_margin,
+        'high_margin_count': high_margin_count,
+        'low_margin_count': low_margin_count,
+        'negative_margin_count': negative_margin_count,
+        'margin_distribution': margin_distribution,
+        'categories': Category.objects.all(),
+        'date_from': date_from,
+        'date_to': date_to,
+        'category_id': category_id,
+        'min_sales': min_sales,
+        'margin_threshold': margin_threshold,
+    }
+    
+    return render(request, 'inventory/reports/product_profitability.html', context)
+
+
+@login_required
+def slow_moving_items_report(request):
+    """Identify slow-moving and obsolete inventory"""
+    user_locations = get_user_locations(request.user)
+    
+    # Get filter parameters
+    days_threshold = int(request.GET.get('days_threshold', 90))
+    category_id = request.GET.get('category', '')
+    min_stock = int(request.GET.get('min_stock', 1))
+    
+    # Calculate cutoff date
+    cutoff_date = timezone.now() - timezone.timedelta(days=days_threshold)
+    
+    # Get all products with stock
+    products = Product.objects.filter(
+        stocks__location__in=user_locations,
+        stocks__quantity__gte=min_stock
+    ).distinct()
+    
+    if category_id:
+        products = products.filter(category_id=category_id)
+    
+    slow_moving_data = []
+    total_slow_value = 0
+    total_obsolete_value = 0
+    
+    for product in products:
+        # Get current stock
+        current_stock = ProductStock.objects.filter(
+            product=product,
+            location__in=user_locations
+        ).aggregate(total=Sum('quantity'))['total'] or 0
+        
+        if current_stock < min_stock:
+            continue
+        
+        stock_value = current_stock * float(product.cost_price)
+        
+        # Get last sale date
+        last_sale = SaleItem.objects.filter(
+            product=product,
+            sale__document_status='sent',
+            sale__location__in=user_locations
+        ).order_by('-sale__date').first()
+        
+        # Get sales in last 90 days
+        recent_sales = SaleItem.objects.filter(
+            product=product,
+            sale__document_status='sent',
+            sale__location__in=user_locations,
+            sale__date__gte=cutoff_date
+        )
+        recent_quantity = recent_sales.aggregate(total=Sum('quantity'))['total'] or 0
+        
+        # Calculate metrics
+        days_since_last_sale = (timezone.now().date() - last_sale.sale.date).days if last_sale else 999
+        monthly_sales_rate = recent_quantity / (days_threshold / 30)  # Convert to monthly rate
+        stock_cover = current_stock / monthly_sales_rate if monthly_sales_rate > 0 else 999
+        
+        # Classification
+        if days_since_last_sale > 365 or (monthly_sales_rate == 0 and current_stock > 0):
+            status = 'obsolete'
+            total_obsolete_value += stock_value
+        elif days_since_last_sale > 180 or stock_cover > 365:
+            status = 'very_slow'
+            total_slow_value += stock_value
+        elif days_since_last_sale > 90 or stock_cover > 180:
+            status = 'slow'
+            total_slow_value += stock_value
+        else:
+            continue  # Skip normal moving items
+        
+        slow_moving_data.append({
+            'product': product,
+            'current_stock': current_stock,
+            'stock_value': stock_value,
+            'last_sale_date': last_sale.sale.date if last_sale else None,
+            'days_since_last_sale': days_since_last_sale,
+            'recent_sales_quantity': recent_quantity,
+            'monthly_sales_rate': monthly_sales_rate,
+            'stock_cover_days': stock_cover,
+            'status': status,
+            'suggested_action': 'Clearance' if status == 'obsolete' else 'Promotion' if status == 'very_slow' else 'Monitor'
+        })
+    
+    # Sort by days since last sale (highest first)
+    slow_moving_data.sort(key=lambda x: x['days_since_last_sale'], reverse=True)
+    
+    # Summary statistics
+    obsolete_count = len([item for item in slow_moving_data if item['status'] == 'obsolete'])
+    very_slow_count = len([item for item in slow_moving_data if item['status'] == 'very_slow'])
+    slow_count = len([item for item in slow_moving_data if item['status'] == 'slow'])
+    
+    context = {
+        'slow_moving_data': slow_moving_data,
+        'obsolete_count': obsolete_count,
+        'very_slow_count': very_slow_count,
+        'slow_count': slow_count,
+        'total_slow_value': total_slow_value,
+        'total_obsolete_value': total_obsolete_value,
+        'total_tied_up_capital': total_slow_value + total_obsolete_value,
+        'categories': Category.objects.all(),
+        'days_threshold': days_threshold,
+        'category_id': category_id,
+        'min_stock': min_stock,
+        'cutoff_date': cutoff_date.date(),
+    }
+    
+    return render(request, 'inventory/reports/slow_moving_items.html', context)
+
+
+@login_required
+def gross_margin_report(request):
+    """Gross margin analysis by category, customer, and time period"""
+    user_locations = get_user_locations(request.user)
+    
+    # Get filter parameters
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    group_by = request.GET.get('group_by', 'category')  # category, customer, monthly, product
+    margin_range = request.GET.get('margin_range', 'all')  # all, high, medium, low, negative
+    
+    # Set default date range (last 12 months)
+    if not date_from:
+        date_from = (timezone.now() - timezone.timedelta(days=365)).strftime('%Y-%m-%d')
+    if not date_to:
+        date_to = timezone.now().strftime('%Y-%m-%d')
+    
+    # Get sales data
+    sales = Sale.objects.filter(
+        document_status='sent',
+        location__in=user_locations,
+        date__date__gte=date_from,
+        date__date__lte=date_to
+    )
+    
+    margin_data = []
+    summary_stats = {
+        'total_revenue': 0,
+        'total_cost': 0,
+        'total_profit': 0,
+        'total_margin': 0
+    }
+    
+    if group_by == 'category':
+        # Group by category
+        categories = Category.objects.filter(
+            product__saleitem__sale__in=sales
+        ).distinct()
+        
+        for category in categories:
+            category_sales = sales.filter(items__product__category=category)
+            category_revenue = 0
+            category_cost = 0
+            
+            for sale in category_sales:
+                for item in sale.items.filter(product__category=category):
+                    category_revenue += item.total_price
+                    category_cost += item.product.cost_price * item.quantity
+            
+            category_profit = category_revenue - category_cost
+            category_margin = (category_profit / category_revenue * 100) if category_revenue > 0 else 0
+            
+            # Apply margin filter
+            if margin_range != 'all':
+                if margin_range == 'high' and category_margin <= 30:
+                    continue
+                elif margin_range == 'medium' and not (15 < category_margin <= 30):
+                    continue
+                elif margin_range == 'low' and not (0 <= category_margin <= 15):
+                    continue
+                elif margin_range == 'negative' and category_margin >= 0:
+                    continue
+            
+            margin_data.append({
+                'group': category.name,
+                'revenue': category_revenue,
+                'cost': category_cost,
+                'profit': category_profit,
+                'margin': category_margin,
+                'item_count': category.product_set.count(),
+                'type': 'category'
+            })
+            
+            summary_stats['total_revenue'] += category_revenue
+            summary_stats['total_cost'] += category_cost
+            summary_stats['total_profit'] += category_profit
+    
+    elif group_by == 'customer':
+        # Group by customer
+        customers = Customer.objects.filter(
+            sale__in=sales
+        ).distinct()
+        
+        for customer in customers:
+            customer_sales = sales.filter(customer=customer)
+            customer_revenue = 0
+            customer_cost = 0
+            
+            for sale in customer_sales:
+                for item in sale.items.all():
+                    customer_revenue += item.total_price
+                    customer_cost += item.product.cost_price * item.quantity
+            
+            customer_profit = customer_revenue - customer_cost
+            customer_margin = (customer_profit / customer_revenue * 100) if customer_revenue > 0 else 0
+            
+            margin_data.append({
+                'group': customer.name,
+                'revenue': customer_revenue,
+                'cost': customer_cost,
+                'profit': customer_profit,
+                'margin': customer_margin,
+                'order_count': customer_sales.count(),
+                'type': 'customer'
+            })
+            
+            summary_stats['total_revenue'] += customer_revenue
+            summary_stats['total_cost'] += customer_cost
+            summary_stats['total_profit'] += customer_profit
+    
+    elif group_by == 'monthly':
+        # Group by month
+        from django.db.models.functions import TruncMonth
+        
+        monthly_data = sales.annotate(
+            month=TruncMonth('date')
+        ).values('month').annotate(
+            revenue=Sum('total_amount'),
+            # Note: This is an approximation - in reality you'd need to calculate cost from items
+            cost=Sum('items__quantity') * Avg('items__product__cost_price')
+        ).order_by('month')
+        
+        for month_data in monthly_data:
+            revenue = month_data['revenue'] or 0
+            cost = month_data['cost'] or 0
+            profit = revenue - cost
+            margin = (profit / revenue * 100) if revenue > 0 else 0
+            
+            margin_data.append({
+                'group': month_data['month'].strftime('%Y-%m'),
+                'revenue': revenue,
+                'cost': cost,
+                'profit': profit,
+                'margin': margin,
+                'type': 'monthly'
+            })
+            
+            summary_stats['total_revenue'] += revenue
+            summary_stats['total_cost'] += cost
+            summary_stats['total_profit'] += profit
+    
+    # Calculate overall margin
+    if summary_stats['total_revenue'] > 0:
+        summary_stats['total_margin'] = (summary_stats['total_profit'] / summary_stats['total_revenue'] * 100)
+    
+    # Sort data
+    if group_by in ['category', 'customer']:
+        margin_data.sort(key=lambda x: x['revenue'], reverse=True)
+    else:
+        margin_data.sort(key=lambda x: x['group'])
+    
+    # Margin analysis
+    high_margin_items = len([item for item in margin_data if item['margin'] > 30])
+    medium_margin_items = len([item for item in margin_data if 15 < item['margin'] <= 30])
+    low_margin_items = len([item for item in margin_data if 0 <= item['margin'] <= 15])
+    negative_margin_items = len([item for item in margin_data if item['margin'] < 0])
+    
+    context = {
+        'margin_data': margin_data,
+        'summary_stats': summary_stats,
+        'high_margin_items': high_margin_items,
+        'medium_margin_items': medium_margin_items,
+        'low_margin_items': low_margin_items,
+        'negative_margin_items': negative_margin_items,
+        'group_by': group_by,
+        'margin_range': margin_range,
+        'date_from': date_from,
+        'date_to': date_to,
+        'group_options': [
+            ('category', 'By Category'),
+            ('customer', 'By Customer'),
+            ('monthly', 'By Month'),
+        ],
+        'margin_ranges': [
+            ('all', 'All Margins'),
+            ('high', 'High (>30%)'),
+            ('medium', 'Medium (15-30%)'),
+            ('low', 'Low (0-15%)'),
+            ('negative', 'Negative (<0%)'),
+        ]
+    }
+    
+    return render(request, 'inventory/reports/gross_margin.html', context)
+
+
+@login_required
+def supplier_scorecard_report(request):
+    """Supplier performance scorecard with multiple metrics"""
+    user_locations = get_user_locations(request.user)
+    
+    # Get filter parameters
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    min_orders = int(request.GET.get('min_orders', 1))
+    
+    # Set default date range (last 12 months)
+    if not date_from:
+        date_from = (timezone.now() - timezone.timedelta(days=365)).strftime('%Y-%m-%d')
+    if not date_to:
+        date_to = timezone.now().strftime('%Y-%m-%d')
+    
+    # Get purchases data
+    purchases = Purchase.objects.filter(
+        location__in=user_locations,
+        purchase_date__date__gte=date_from,
+        purchase_date__date__lte=date_to
+    )
+    
+    supplier_data = {}
+    
+    for purchase in purchases.select_related('location').prefetch_related('items'):
+        supplier_name = purchase.supplier_name
+        if not supplier_name:
+            continue
+            
+        if supplier_name not in supplier_data:
+            supplier_data[supplier_name] = {
+                'total_spent': 0,
+                'order_count': 0,
+                'total_items': 0,
+                'total_quantity': 0,
+                'on_time_deliveries': 0,
+                'complete_deliveries': 0,
+                'purchase_orders': [],
+                'items_data': {},
+                'locations': set()
+            }
+        
+        data = supplier_data[supplier_name]
+        data['total_spent'] += float(purchase.total_amount)
+        data['order_count'] += 1
+        data['total_quantity'] += purchase.get_total_quantity()
+        data['locations'].add(purchase.location.name)
+        data['purchase_orders'].append(purchase)
+        
+        # Track items for quality analysis
+        for item in purchase.items.all():
+            product_key = f"{item.product.name}"
+            if product_key not in data['items_data']:
+                data['items_data'][product_key] = {
+                    'total_quantity': 0,
+                    'total_cost': 0,
+                    'unit_prices': []
+                }
+            
+            data['items_data'][product_key]['total_quantity'] += item.quantity
+            data['items_data'][product_key]['total_cost'] += item.quantity * item.unit_price
+            data['items_data'][product_key]['unit_prices'].append(item.unit_price)
+        
+        data['total_items'] = len(data['items_data'])
+    
+    # Calculate performance metrics
+    scorecard_data = []
+    
+    for supplier_name, data in supplier_data.items():
+        if data['order_count'] < min_orders:
+            continue
+        
+        # Calculate metrics
+        avg_order_value = data['total_spent'] / data['order_count']
+        
+        # Price stability (coefficient of variation)
+        price_stability_scores = []
+        for item_data in data['items_data'].values():
+            if len(item_data['unit_prices']) > 1:
+                prices = item_data['unit_prices']
+                mean_price = sum(prices) / len(prices)
+                std_dev = (sum((p - mean_price) ** 2 for p in prices) / len(prices)) ** 0.5
+                cv = (std_dev / mean_price * 100) if mean_price > 0 else 0
+                price_stability_scores.append(max(0, 100 - cv))  # Higher CV = lower score
+            else:
+                price_stability_scores.append(80)  # Default score for single purchase
+        
+        price_stability = sum(price_stability_scores) / len(price_stability_scores) if price_stability_scores else 80
+        
+        # Product range score
+        product_range_score = min(100, data['total_items'] * 10)  # 10 points per unique product, max 100
+        
+        # Order frequency (higher frequency = better)
+        date_range_days = (timezone.now().date() - timezone.datetime.strptime(date_from, '%Y-%m-%d').date()).days
+        orders_per_month = (data['order_count'] / (date_range_days / 30)) if date_range_days > 0 else 0
+        frequency_score = min(100, orders_per_month * 20)  # 5 orders/month = 100 points
+        
+        # Spending concentration score
+        # This would ideally compare against total purchases across all suppliers
+        spending_score = min(100, data['total_spent'] / 1000)  # $1000 = 100 points
+        
+        # Calculate overall score (weighted average)
+        overall_score = (
+            price_stability * 0.3 +
+            product_range_score * 0.2 +
+            frequency_score * 0.25 +
+            spending_score * 0.25
+        )
+        
+        # Performance rating
+        if overall_score >= 90:
+            rating = 'Excellent'
+            rating_class = 'success'
+        elif overall_score >= 75:
+            rating = 'Good'
+            rating_class = 'info'
+        elif overall_score >= 60:
+            rating = 'Fair'
+            rating_class = 'warning'
+        else:
+            rating = 'Poor'
+            rating_class = 'danger'
+        
+        scorecard_data.append({
+            'supplier_name': supplier_name,
+            'total_spent': data['total_spent'],
+            'order_count': data['order_count'],
+            'avg_order_value': avg_order_value,
+            'total_items': data['total_items'],
+            'total_quantity': data['total_quantity'],
+            'locations': list(data['locations']),
+            'metrics': {
+                'price_stability': price_stability,
+                'product_range': product_range_score,
+                'order_frequency': frequency_score,
+                'spending_level': spending_score,
+            },
+            'overall_score': overall_score,
+            'rating': rating,
+            'rating_class': rating_class,
+            'last_order_date': max([po.purchase_date for po in data['purchase_orders']]) if data['purchase_orders'] else None
+        })
+    
+    # Sort by overall score (highest first)
+    scorecard_data.sort(key=lambda x: x['overall_score'], reverse=True)
+    
+    # Summary statistics
+    excellent_count = len([s for s in scorecard_data if s['rating'] == 'Excellent'])
+    good_count = len([s for s in scorecard_data if s['rating'] == 'Good'])
+    fair_count = len([s for s in scorecard_data if s['rating'] == 'Fair'])
+    poor_count = len([s for s in scorecard_data if s['rating'] == 'Poor'])
+    
+    total_spending = sum(s['total_spent'] for s in scorecard_data)
+    avg_supplier_score = sum(s['overall_score'] for s in scorecard_data) / len(scorecard_data) if scorecard_data else 0
+    
+    context = {
+        'scorecard_data': scorecard_data,
+        'excellent_count': excellent_count,
+        'good_count': good_count,
+        'fair_count': fair_count,
+        'poor_count': poor_count,
+        'total_spending': total_spending,
+        'avg_supplier_score': avg_supplier_score,
+        'total_suppliers': len(scorecard_data),
+        'date_from': date_from,
+        'date_to': date_to,
+        'min_orders': min_orders,
+    }
+    
+    return render(request, 'inventory/reports/supplier_scorecard.html', context)
+
+
