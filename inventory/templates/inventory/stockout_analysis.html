@@ -1,0 +1,491 @@
+<!-- templates/inventory/reports/stockout_analysis.html -->
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Stockout Analysis - Teba Inventory{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="{% url 'inventory:reports_dashboard' %}">Reports</a></li>
+<li class="breadcrumb-item active">Stockout Analysis</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-exclamation-circle me-2"></i>Stockout Analysis & Lost Sales
+                </h5>
+                <div class="no-print">
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="printReport()">
+                        <i class="fas fa-print me-1"></i>Print
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="exportReport('csv')">
+                        <i class="fas fa-download me-1"></i>Export CSV
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Filters -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <form method="get" class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Date From</label>
+                                <input type="date" name="date_from" value="{{ date_from }}" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Date To</label>
+                                <input type="date" name="date_to" value="{{ date_to }}" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Min Stockout Days</label>
+                                <input type="number" name="min_stockout_days" value="{{ min_stockout_days }}" class="form-control" min="1" max="365">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Analysis Period</label>
+                                <div class="form-text">
+                                    {{ analysis_period_days }} days analyzed
+                                </div>
+                            </div>
+                            <div class="col-md-12 mt-3">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-filter me-1"></i>Apply Filters
+                                </button>
+                                <a href="{% url 'inventory:stockout_analysis_report' %}" class="btn btn-outline-secondary ms-2">
+                                    <i class="fas fa-redo me-1"></i>Reset
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Impact Summary -->
+                <div class="row mb-4">
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card border-left-danger h-100">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                                            Estimated Lost Sales
+                                        </div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                            UGX {{ total_lost_sales_estimate|floatformat:0|intcomma }}
+                                        </div>
+                                        <div class="text-xs text-muted mt-1">
+                                            {{ stockout_data|length }} products affected
+                                        </div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-money-bill-wave fa-2x text-danger"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card border-left-warning h-100">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                            Total Stockout Days
+                                        </div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                            {{ total_stockout_days }}
+                                        </div>
+                                        <div class="text-xs text-muted mt-1">
+                                            Across all products
+                                        </div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-calendar-times fa-2x text-warning"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card border-left-info h-100">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                            Average Service Level
+                                        </div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                            {{ avg_service_level|floatformat:1 }}%
+                                        </div>
+                                        <div class="text-xs text-muted mt-1">
+                                            Overall performance
+                                        </div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-percentage fa-2x text-info"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card border-left-success h-100">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                            High Severity Items
+                                        </div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                            {{ high_severity_count }}
+                                        </div>
+                                        <div class="text-xs text-muted mt-1">
+                                            Urgent attention needed
+                                        </div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-exclamation-triangle fa-2x text-success"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Severity Distribution -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Stockout Severity Distribution</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-md-4">
+                                        <div class="metric-card">
+                                            <div class="metric-value text-danger">{{ high_severity_count }}</div>
+                                            <div class="metric-label">High Severity</div>
+                                            <small class="text-muted">> UGX 1,000 lost sales</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="metric-card">
+                                            <div class="metric-value text-warning">{{ medium_severity_count }}</div>
+                                            <div class="metric-label">Medium Severity</div>
+                                            <small class="text-muted">UGX 100 - 1,000 lost sales</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="metric-card">
+                                            <div class="metric-value text-info">{{ low_severity_count }}</div>
+                                            <div class="metric-label">Low Severity</div>
+                                            <small class="text-muted">< UGX 100 lost sales</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Recommendations -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <h6 class="card-title mb-0">
+                                    <i class="fas fa-lightbulb me-2"></i>Prevention Strategies
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="d-flex align-items-start mb-3">
+                                            <i class="fas fa-boxes text-primary me-3 mt-1"></i>
+                                            <div>
+                                                <strong class="d-block">Safety Stock Optimization</strong>
+                                                <small class="text-muted">
+                                                    Set appropriate safety stock levels based on demand variability
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="d-flex align-items-start mb-3">
+                                            <i class="fas fa-sync-alt text-success me-3 mt-1"></i>
+                                            <div>
+                                                <strong class="d-block">Reorder Point System</strong>
+                                                <small class="text-muted">
+                                                    Implement automatic reorder points and lead time considerations
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="d-flex align-items-start mb-3">
+                                            <i class="fas fa-chart-line text-info me-3 mt-1"></i>
+                                            <div>
+                                                <strong class="d-block">Demand Forecasting</strong>
+                                                <small class="text-muted">
+                                                    Improve demand prediction using historical sales patterns
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stockout Analysis Chart -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Lost Sales Impact Analysis</h6>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="stockoutChart" height="100"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stockout Details Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">Stockout Analysis Details</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th class="text-end">Current Stock</th>
+                                        <th class="text-end">Avg Daily Sales</th>
+                                        <th class="text-end">Stockout Days</th>
+                                        <th class="text-end">Service Level</th>
+                                        <th class="text-end">Lost Units (Est.)</th>
+                                        <th class="text-end">Lost Sales (Est.)</th>
+                                        <th>Severity</th>
+                                        <th>Recommendation</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in stockout_data %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ item.product.name }}</strong>
+                                            {% if item.product.sku %}
+                                            <br><small class="text-muted">SKU: {{ item.product.sku }}</small>
+                                            {% endif %}
+                                            {% if item.product.category %}
+                                            <br><small class="text-muted">{{ item.product.category.name }}</small>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="{% if item.current_stock == 0 %}text-danger{% elif item.current_stock < 10 %}text-warning{% else %}text-success{% endif %}">
+                                                {{ item.current_stock|intcomma }}
+                                            </span>
+                                        </td>
+                                        <td class="text-end">{{ item.avg_daily_sales|floatformat:2 }}</td>
+                                        <td class="text-end">
+                                            <span class="badge 
+                                                {% if item.stockout_days > 30 %}badge-negative
+                                                {% elif item.stockout_days > 7 %}badge bg-warning
+                                                {% else %}badge bg-info{% endif %}">
+                                                {{ item.stockout_days }} days
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="badge 
+                                                {% if item.service_level >= 95 %}badge-positive
+                                                {% elif item.service_level >= 90 %}badge bg-info
+                                                {% elif item.service_level >= 80 %}badge bg-warning
+                                                {% else %}badge-negative{% endif %}">
+                                                {{ item.service_level|floatformat:1 }}%
+                                            </span>
+                                        </td>
+                                        <td class="text-end">{{ item.lost_units_estimate|floatformat:0|intcomma }}</td>
+                                        <td class="text-end">
+                                            <strong class="{% if item.lost_sales_estimate > 1000 %}text-danger{% elif item.lost_sales_estimate > 100 %}text-warning{% else %}text-info{% endif %}">
+                                                UGX {{ item.lost_sales_estimate|floatformat:0|intcomma }}
+                                            </strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge 
+                                                {% if item.severity == 'High' %}badge-negative
+                                                {% elif item.severity == 'Medium' %}badge bg-warning
+                                                {% else %}badge bg-info{% endif %}">
+                                                {{ item.severity }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge 
+                                                {% if item.recommendation == 'Urgent Restock' %}badge-negative
+                                                {% elif item.recommendation == 'Monitor & Restock' %}badge bg-warning
+                                                {% else %}badge bg-info{% endif %}">
+                                                {{ item.recommendation }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="9" class="text-center text-muted py-4">
+                                            <i class="fas fa-check-circle fa-2x mb-3 text-success"></i><br>
+                                            No significant stockouts detected! Excellent inventory management.
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot>
+                                    <tr class="table-active">
+                                        <td><strong>Totals</strong></td>
+                                        <td colspan="4"></td>
+                                        <td class="text-end">
+                                            <strong>{{ stockout_data|map:'lost_units_estimate'|sum|floatformat:0|intcomma }}</strong>
+                                        </td>
+                                        <td class="text-end">
+                                            <strong>UGX {{ total_lost_sales_estimate|floatformat:0|intcomma }}</strong>
+                                        </td>
+                                        <td colspan="2"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function exportReport(format) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('format', format);
+    window.location.href = url.toString();
+}
+
+// Stockout Analysis Chart
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('stockoutChart').getContext('2d');
+    
+    // Prepare chart data (top 15 items by lost sales)
+    const topItems = {{ stockout_data|slice:":15"|safe }};
+    const labels = topItems.map(item => item.product.name);
+    const lostSales = topItems.map(item => item.lost_sales_estimate);
+    const stockoutDays = topItems.map(item => item.stockout_days);
+    const severities = topItems.map(item => item.severity);
+    
+    const backgroundColors = severities.map(severity => 
+        severity === 'High' ? '#ef4444' : 
+        severity === 'Medium' ? '#f59e0b' : '#3b82f6'
+    );
+    
+    const stockoutChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Lost Sales (UGX)',
+                    data: lostSales,
+                    backgroundColor: backgroundColors,
+                    borderColor: backgroundColors,
+                    borderWidth: 1,
+                    yAxisID: 'y',
+                },
+                {
+                    label: 'Stockout Days',
+                    data: stockoutDays,
+                    type: 'line',
+                    borderColor: '#4f46e5',
+                    backgroundColor: 'transparent',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    yAxisID: 'y1',
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        color: 'var(--muted)',
+                        maxRotation: 45,
+                        minRotation: 45
+                    },
+                    grid: {
+                        color: 'var(--border)'
+                    }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Lost Sales (UGX)',
+                        color: 'var(--muted)'
+                    },
+                    ticks: {
+                        color: 'var(--muted)',
+                        callback: function(value) {
+                            return 'UGX ' + (value / 1000).toFixed(0) + 'K';
+                        }
+                    },
+                    grid: {
+                        color: 'var(--border)'
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Stockout Days',
+                        color: 'var(--muted)'
+                    },
+                    ticks: {
+                        color: 'var(--muted)'
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: 'var(--muted)'
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            if (context.dataset.label === 'Lost Sales (UGX)') {
+                                return 'Lost Sales: UGX ' + context.parsed.y.toLocaleString();
+                            } else {
+                                return 'Stockout Days: ' + context.parsed.y;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
