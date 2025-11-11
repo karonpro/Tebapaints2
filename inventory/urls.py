@@ -109,8 +109,15 @@ urlpatterns = [
     path('reports/customer-analysis/', views.customer_analysis_report, name='customer_analysis_report'),
     path('reports/stock-movement/', views.stock_movement_report, name='stock_movement_report'),
     path('reports/export/<str:report_type>/', views.export_report_csv, name='export_report_csv'),
-# Add this to your inventory/urls.py urlpatterns
-    path('api/customer-search/', views.customer_search_api, name='customer_search_api'),
+
+# Product Performance Reports
+   path('reports/product-profitability/', views.product_profitability_report, name='product_profitability_report'),
+   path('reports/slow-moving-items/', views.slow_moving_items_report, name='slow_moving_items_report'),
+   path('reports/gross-margin-analysis/', views.gross_margin_report, name='gross_margin_report'),
+   path('reports/supplier-scorecard/', views.supplier_scorecard_report, name='supplier_scorecard_report'),
+
+    
+  path('api/customer-search/', views.customer_search_api, name='customer_search_api'),
 # Add these to your inventory/urls.py
 
 # Purchase Reports
