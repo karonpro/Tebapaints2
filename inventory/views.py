@@ -6838,4 +6838,543 @@ def supplier_scorecard_report(request):
     
     return render(request, 'inventory/reports/supplier_scorecard.html', context)
 
+# Add to inventory/views.py
+
+@login_required
+def abc_analysis_report(request):
+    """ABC Analysis - Inventory classification by value and importance"""
+    user_locations = get_user_locations(request.user)
+    
+    # Get filter parameters
+    classification_basis = request.GET.get('basis', 'value')  # value, usage, profit
+    include_zero_stock = request.GET.get('include_zero', 'false') == 'true'
+    
+    # Get all products with stock
+    products_query = Product.objects.filter(
+        stocks__location__in=user_locations
+    ).distinct()
+    
+    if not include_zero_stock:
+        products_query = products_query.filter(
+            stocks__quantity__gt=0
+        )
+    
+    products_data = []
+    
+    for product in products_query:
+        # Get current stock across all user locations
+        current_stock = ProductStock.objects.filter(
+            product=product,
+            location__in=user_locations
+        ).aggregate(total=Sum('quantity'))['total'] or 0
+        
+        if current_stock == 0 and not include_zero_stock:
+            continue
+        
+        # Calculate metrics based on classification basis
+        if classification_basis == 'value':
+            # Based on inventory value
+            stock_value = current_stock * float(product.cost_price)
+            metric_value = stock_value
+            
+        elif classification_basis == 'usage':
+            # Based on sales usage (last 90 days)
+            ninety_days_ago = timezone.now() - timezone.timedelta(days=90)
+            sales_quantity = SaleItem.objects.filter(
+                product=product,
+                sale__document_status='sent',
+                sale__location__in=user_locations,
+                sale__date__gte=ninety_days_ago
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+            metric_value = sales_quantity * float(product.cost_price)  # Usage value
+            
+        elif classification_basis == 'profit':
+            # Based on profitability (last 90 days)
+            ninety_days_ago = timezone.now() - timezone.timedelta(days=90)
+            sale_items = SaleItem.objects.filter(
+                product=product,
+                sale__document_status='sent',
+                sale__location__in=user_locations,
+                sale__date__gte=ninety_days_ago
+            )
+            revenue = sale_items.aggregate(total=Sum('total_price'))['total'] or 0
+            cost = sale_items.aggregate(total=Sum('quantity'))['total'] or 0 * float(product.cost_price)
+            metric_value = revenue - cost  # Profit
+            
+        else:
+            metric_value = 0
+        
+        products_data.append({
+            'product': product,
+            'current_stock': current_stock,
+            'stock_value': current_stock * float(product.cost_price),
+            'metric_value': metric_value,
+            'cost_price': product.cost_price,
+            'selling_price': product.selling_price,
+        })
+    
+    # Sort by metric value (descending)
+    products_data.sort(key=lambda x: x['metric_value'], reverse=True)
+    
+    # Calculate cumulative percentages for ABC classification
+    total_metric_value = sum(item['metric_value'] for item in products_data)
+    
+    cumulative_value = 0
+    classified_data = []
+    
+    for i, item in enumerate(products_data):
+        cumulative_value += item['metric_value']
+        cumulative_percentage = (cumulative_value / total_metric_value * 100) if total_metric_value > 0 else 0
+        
+        # ABC Classification
+        if cumulative_percentage <= 80:
+            classification = 'A'
+            class_color = 'danger'
+            class_description = 'High Value - Tight Control'
+        elif cumulative_percentage <= 95:
+            classification = 'B'
+            class_color = 'warning'
+            class_description = 'Medium Value - Regular Review'
+        else:
+            classification = 'C'
+            class_color = 'success'
+            class_description = 'Low Value - Minimal Effort'
+        
+        item_percentage = (item['metric_value'] / total_metric_value * 100) if total_metric_value > 0 else 0
+        
+        classified_data.append({
+            **item,
+            'cumulative_percentage': cumulative_percentage,
+            'item_percentage': item_percentage,
+            'classification': classification,
+            'class_color': class_color,
+            'class_description': class_description,
+            'rank': i + 1
+        })
+    
+    # Summary statistics by class
+    class_summary = {
+        'A': {'count': 0, 'total_value': 0, 'percentage': 0},
+        'B': {'count': 0, 'total_value': 0, 'percentage': 0},
+        'C': {'count': 0, 'total_value': 0, 'percentage': 0}
+    }
+    
+    for item in classified_data:
+        class_summary[item['classification']]['count'] += 1
+        class_summary[item['classification']]['total_value'] += item['metric_value']
+    
+    for class_key in class_summary:
+        if total_metric_value > 0:
+            class_summary[class_key]['percentage'] = (
+                class_summary[class_key]['total_value'] / total_metric_value * 100
+            )
+    
+    context = {
+        'classified_data': classified_data,
+        'class_summary': class_summary,
+        'total_metric_value': total_metric_value,
+        'total_items': len(classified_data),
+        'classification_basis': classification_basis,
+        'include_zero_stock': include_zero_stock,
+        'basis_options': [
+            ('value', 'Inventory Value'),
+            ('usage', 'Sales Usage Value'),
+            ('profit', 'Profit Contribution'),
+        ]
+    }
+    
+    return render(request, 'inventory/reports/abc_analysis.html', context)
+
+
+@login_required
+def stockout_analysis_report(request):
+    """Analyze stockouts and lost sales opportunities"""
+    user_locations = get_user_locations(request.user)
+    
+    # Get filter parameters
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    min_stockout_days = int(request.GET.get('min_stockout_days', 1))
+    
+    # Set default date range (last 90 days)
+    if not date_from:
+        date_from = (timezone.now() - timezone.timedelta(days=90)).strftime('%Y-%m-%d')
+    if not date_to:
+        date_to = timezone.now().strftime('%Y-%m-%d')
+    
+    # Convert dates
+    start_date = timezone.datetime.strptime(date_from, '%Y-%m-%d').date()
+    end_date = timezone.datetime.strptime(date_to, '%Y-%m-%d').date()
+    
+    # Get all products
+    products = Product.objects.all()
+    stockout_data = []
+    total_lost_sales_estimate = 0
+    total_stockout_days = 0
+    
+    for product in products:
+        # Get stock history (simplified - in reality you'd need detailed stock tracking)
+        stock_records = ProductStock.objects.filter(
+            product=product,
+            location__in=user_locations
+        )
+        
+        # Get sales data for the period
+        sales_items = SaleItem.objects.filter(
+            product=product,
+            sale__document_status='sent',
+            sale__location__in=user_locations,
+            sale__date__date__range=[start_date, end_date]
+        )
+        
+        total_sold = sales_items.aggregate(total=Sum('quantity'))['total'] or 0
+        avg_daily_sales = total_sold / ((end_date - start_date).days + 1) if (end_date - start_date).days > 0 else 0
+        
+        # Analyze stockouts (simplified logic)
+        stockout_events = []
+        current_stockout_days = 0
+        
+        # Check current stock status
+        current_stock = stock_records.aggregate(total=Sum('quantity'))['total'] or 0
+        
+        if current_stock == 0:
+            # Product is currently out of stock
+            days_out_of_stock = (timezone.now().date() - start_date).days
+            current_stockout_days = min(days_out_of_stock, (end_date - start_date).days)
+            stockout_events.append({
+                'start_date': start_date,
+                'end_date': timezone.now().date(),
+                'days': current_stockout_days
+            })
+        
+        # Calculate lost sales opportunity
+        lost_sales_estimate = 0
+        stockout_days = sum(event['days'] for event in stockout_events)
+        
+        if stockout_days >= min_stockout_days and avg_daily_sales > 0:
+            # Estimate lost sales based on average daily sales
+            lost_units = avg_daily_sales * stockout_days
+            lost_sales_estimate = lost_units * float(product.selling_price)
+            
+            # Calculate impact metrics
+            service_level = 1 - (stockout_days / ((end_date - start_date).days + 1))
+            
+            stockout_data.append({
+                'product': product,
+                'current_stock': current_stock,
+                'avg_daily_sales': avg_daily_sales,
+                'stockout_days': stockout_days,
+                'service_level': service_level * 100,
+                'lost_units_estimate': lost_units,
+                'lost_sales_estimate': lost_sales_estimate,
+                'severity': 'High' if lost_sales_estimate > 1000 else 'Medium' if lost_sales_estimate > 100 else 'Low',
+                'recommendation': 'Urgent Restock' if lost_sales_estimate > 1000 else 'Monitor & Restock' if lost_sales_estimate > 100 else 'Maintain Watch'
+            })
+            
+            total_lost_sales_estimate += lost_sales_estimate
+            total_stockout_days += stockout_days
+    
+    # Sort by lost sales estimate (highest first)
+    stockout_data.sort(key=lambda x: x['lost_sales_estimate'], reverse=True)
+    
+    # Summary statistics
+    high_severity_count = len([item for item in stockout_data if item['severity'] == 'High'])
+    medium_severity_count = len([item for item in stockout_data if item['severity'] == 'Medium'])
+    low_severity_count = len([item for item in stockout_data if item['severity'] == 'Low'])
+    
+    avg_service_level = sum(item['service_level'] for item in stockout_data) / len(stockout_data) if stockout_data else 100
+    
+    context = {
+        'stockout_data': stockout_data,
+        'total_lost_sales_estimate': total_lost_sales_estimate,
+        'total_stockout_days': total_stockout_days,
+        'high_severity_count': high_severity_count,
+        'medium_severity_count': medium_severity_count,
+        'low_severity_count': low_severity_count,
+        'avg_service_level': avg_service_level,
+        'date_from': date_from,
+        'date_to': date_to,
+        'min_stockout_days': min_stockout_days,
+        'analysis_period_days': (end_date - start_date).days + 1,
+    }
+    
+    return render(request, 'inventory/reports/stockout_analysis.html', context)
+
+
+@login_required
+def cash_cycle_report(request):
+    """Cash-to-Cash Cycle Time analysis"""
+    user_locations = get_user_locations(request.user)
+    
+    # Get filter parameters
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    
+    # Set default date range (last 365 days)
+    if not date_from:
+        date_from = (timezone.now() - timezone.timedelta(days=365)).strftime('%Y-%m-%d')
+    if not date_to:
+        date_to = timezone.now().strftime('%Y-%m-%d')
+    
+    # Convert dates
+    start_date = timezone.datetime.strptime(date_from, '%Y-%m-%d').date()
+    end_date = timezone.datetime.strptime(date_to, '%Y-%m-%d').date()
+    period_days = (end_date - start_date).days + 1
+    
+    # Calculate key metrics
+    
+    # 1. Days Inventory Outstanding (DIO)
+    # Average inventory / (Cost of Goods Sold / Period Days) * Period Days
+    avg_inventory_value = calculate_avg_inventory_value(user_locations, start_date, end_date)
+    cogs = calculate_cogs(user_locations, start_date, end_date)
+    dio = (avg_inventory_value / (cogs / period_days)) if cogs > 0 else 0
+    
+    # 2. Days Sales Outstanding (DSO)
+    # Average Accounts Receivable / (Total Credit Sales / Period Days) * Period Days
+    # Simplified - using sales data
+    total_sales = Sale.objects.filter(
+        document_status='sent',
+        location__in=user_locations,
+        date__date__range=[start_date, end_date]
+    ).aggregate(total=Sum('total_amount'))['total'] or 0
+    
+    # Estimate accounts receivable (unpaid sales)
+    unpaid_sales = Sale.objects.filter(
+        document_status='sent',
+        location__in=user_locations,
+        date__date__range=[start_date, end_date]
+    ).exclude(paid_amount=models.F('total_amount'))
+    
+    avg_receivable = unpaid_sales.aggregate(
+        avg_balance=Avg(models.F('total_amount') - models.F('paid_amount'))
+    )['avg_balance'] or 0
+    
+    dso = (avg_receivable / (total_sales / period_days)) if total_sales > 0 else 0
+    
+    # 3. Days Payable Outstanding (DPO)
+    # Average Accounts Payable / (Total Purchases / Period Days) * Period Days
+    total_purchases = Purchase.objects.filter(
+        location__in=user_locations,
+        purchase_date__date__range=[start_date, end_date]
+    ).aggregate(total=Sum('total_amount'))['total'] or 0
+    
+    # Estimate accounts payable (simplified)
+    avg_payable = total_purchases * 0.3  # Assume 30% of purchases are unpaid
+    dpo = (avg_payable / (total_purchases / period_days)) if total_purchases > 0 else 0
+    
+    # 4. Cash Conversion Cycle (CCC)
+    ccc = dio + dso - dpo
+    
+    # Trend analysis (simplified)
+    trends = {
+        'dio_trend': 'improving' if dio < 45 else 'stable' if dio < 60 else 'deteriorating',
+        'dso_trend': 'improving' if dso < 30 else 'stable' if dso < 45 else 'deteriorating',
+        'dpo_trend': 'improving' if dpo > 30 else 'stable' if dpo > 15 else 'deteriorating',
+        'ccc_trend': 'improving' if ccc < 45 else 'stable' if ccc < 60 else 'deteriorating'
+    }
+    
+    # Industry benchmarks (paint/retail industry)
+    benchmarks = {
+        'dio_benchmark': 60,  # days
+        'dso_benchmark': 30,  # days  
+        'dpo_benchmark': 45,  # days
+        'ccc_benchmark': 45   # days
+    }
+    
+    # Performance ratings
+    performance = {
+        'dio_rating': 'Good' if dio <= benchmarks['dio_benchmark'] else 'Needs Improvement',
+        'dso_rating': 'Good' if dso <= benchmarks['dso_benchmark'] else 'Needs Improvement',
+        'dpo_rating': 'Good' if dpo >= benchmarks['dpo_benchmark'] else 'Needs Improvement',
+        'ccc_rating': 'Good' if ccc <= benchmarks['ccc_benchmark'] else 'Needs Improvement'
+    }
+    
+    context = {
+        'dio': dio,
+        'dso': dso,
+        'dpo': dpo,
+        'ccc': ccc,
+        'trends': trends,
+        'benchmarks': benchmarks,
+        'performance': performance,
+        'date_from': date_from,
+        'date_to': date_to,
+        'period_days': period_days,
+        'avg_inventory_value': avg_inventory_value,
+        'cogs': cogs,
+        'total_sales': total_sales,
+        'total_purchases': total_purchases,
+    }
+    
+    return render(request, 'inventory/reports/cash_cycle.html', context)
+
+
+def calculate_avg_inventory_value(user_locations, start_date, end_date):
+    """Calculate average inventory value over period"""
+    # Simplified calculation - in reality you'd need daily snapshots
+    products = Product.objects.filter(
+        stocks__location__in=user_locations
+    ).distinct()
+    
+    total_value = 0
+    for product in products:
+        avg_stock = ProductStock.objects.filter(
+            product=product,
+            location__in=user_locations
+        ).aggregate(avg=Avg('quantity'))['avg'] or 0
+        total_value += avg_stock * float(product.cost_price)
+    
+    return total_value
+
+
+def calculate_cogs(user_locations, start_date, end_date):
+    """Calculate Cost of Goods Sold"""
+    sale_items = SaleItem.objects.filter(
+        sale__document_status='sent',
+        sale__location__in=user_locations,
+        sale__date__date__range=[start_date, end_date]
+    )
+    
+    cogs = 0
+    for item in sale_items:
+        cogs += item.quantity * float(item.product.cost_price)
+    
+    return cogs
+
+
+@login_required
+def purchase_price_variance_report(request):
+    """Analyze purchase price changes and variances"""
+    user_locations = get_user_locations(request.user)
+    
+    # Get filter parameters
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    supplier_filter = request.GET.get('supplier', '')
+    min_purchases = int(request.GET.get('min_purchases', 2))
+    variance_threshold = float(request.GET.get('variance_threshold', 10.0))
+    
+    # Set default date range (last 365 days)
+    if not date_from:
+        date_from = (timezone.now() - timezone.timedelta(days=365)).strftime('%Y-%m-%d')
+    if not date_to:
+        date_to = timezone.now().strftime('%Y-%m-%d')
+    
+    # Get purchase data
+    purchases = Purchase.objects.filter(
+        location__in=user_locations,
+        purchase_date__date__gte=date_from,
+        purchase_date__date__lte=date_to
+    )
+    
+    if supplier_filter:
+        purchases = purchases.filter(supplier_name__icontains=supplier_filter)
+    
+    # Analyze price variance by product
+    product_variance_data = {}
+    
+    for purchase in purchases.prefetch_related('items__product'):
+        for item in purchase.items.all():
+            product_id = item.product.id
+            if product_id not in product_variance_data:
+                product_variance_data[product_id] = {
+                    'product': item.product,
+                    'purchases': [],
+                    'suppliers': set(),
+                    'unit_prices': []
+                }
+            
+            product_variance_data[product_id]['purchases'].append({
+                'date': purchase.purchase_date,
+                'unit_price': item.unit_price,
+                'quantity': item.quantity,
+                'supplier': purchase.supplier_name,
+                'purchase_ref': purchase.reference
+            })
+            product_variance_data[product_id]['suppliers'].add(purchase.supplier_name)
+            product_variance_data[product_id]['unit_prices'].append(item.unit_price)
+    
+    # Calculate variance metrics
+    variance_analysis = []
+    total_cost_impact = 0
+    
+    for product_id, data in product_variance_data.items():
+        if len(data['purchases']) < min_purchases:
+            continue
+        
+        unit_prices = data['unit_prices']
+        min_price = min(unit_prices)
+        max_price = max(unit_prices)
+        avg_price = sum(unit_prices) / len(unit_prices)
+        
+        # Calculate variance metrics
+        price_range = max_price - min_price
+        price_variance = (price_range / min_price * 100) if min_price > 0 else 0
+        std_dev = (sum((p - avg_price) ** 2 for p in unit_prices) / len(unit_prices)) ** 0.5
+        coefficient_variation = (std_dev / avg_price * 100) if avg_price > 0 else 0
+        
+        # Calculate cost impact
+        total_quantity = sum(p['quantity'] for p in data['purchases'])
+        potential_savings = total_quantity * (avg_price - min_price)
+        
+        # Apply variance threshold filter
+        if price_variance < variance_threshold:
+            continue
+        
+        # Trend analysis
+        sorted_purchases = sorted(data['purchases'], key=lambda x: x['date'])
+        first_price = sorted_purchases[0]['unit_price']
+        last_price = sorted_purchases[-1]['unit_price']
+        price_change = ((last_price - first_price) / first_price * 100) if first_price > 0 else 0
+        
+        variance_analysis.append({
+            'product': data['product'],
+            'purchase_count': len(data['purchases']),
+            'supplier_count': len(data['suppliers']),
+            'min_price': min_price,
+            'max_price': max_price,
+            'avg_price': avg_price,
+            'price_range': price_range,
+            'price_variance': price_variance,
+            'coefficient_variation': coefficient_variation,
+            'price_trend': 'increasing' if price_change > 5 else 'decreasing' if price_change < -5 else 'stable',
+            'price_change_percent': price_change,
+            'potential_savings': potential_savings,
+            'latest_purchase': sorted_purchases[-1],
+            'suppliers': list(data['suppliers']),
+            'risk_level': 'High' if price_variance > 25 else 'Medium' if price_variance > 15 else 'Low'
+        })
+        
+        total_cost_impact += potential_savings
+    
+    # Sort by potential savings (highest first)
+    variance_analysis.sort(key=lambda x: x['potential_savings'], reverse=True)
+    
+    # Summary statistics
+    high_risk_count = len([item for item in variance_analysis if item['risk_level'] == 'High'])
+    medium_risk_count = len([item for item in variance_analysis if item['risk_level'] == 'Medium'])
+    low_risk_count = len([item for item in variance_analysis if item['risk_level'] == 'Low'])
+    
+    avg_variance = sum(item['price_variance'] for item in variance_analysis) / len(variance_analysis) if variance_analysis else 0
+    
+    context = {
+        'variance_analysis': variance_analysis,
+        'total_cost_impact': total_cost_impact,
+        'high_risk_count': high_risk_count,
+        'medium_risk_count': medium_risk_count,
+        'low_risk_count': low_risk_count,
+        'avg_variance': avg_variance,
+        'date_from': date_from,
+        'date_to': date_to,
+        'supplier_filter': supplier_filter,
+        'min_purchases': min_purchases,
+        'variance_threshold': variance_threshold,
+        'unique_suppliers': list(set(
+            purchase.supplier_name for purchase in purchases 
+            if purchase.supplier_name
+        )),
+    }
+    
+    return render(request, 'inventory/reports/purchase_price_variance.html', context)
+
 
