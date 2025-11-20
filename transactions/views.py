@@ -1567,3 +1567,46 @@ def _render_payment_form_with_error(request, customer, unpaid_sales, total_custo
         "form_data": form_data,  # Pass form data back for repopulation
     }
     return render(request, "transactions/unified_payment_form.html", context)
+
+import logging
+from django.shortcuts import render, redirect
+from django.contrib import messages
+
+logger = logging.getLogger(__name__)
+
+def transaction_add_debug(request):
+    """Debug view to identify the 500 error"""
+    if request.method == 'POST':
+        print("=== DEBUG: POST request received ===")
+        print("POST data:", request.POST)
+        
+        from .forms import TransactionForm  # Adjust import as needed
+        
+        form = TransactionForm(request.POST)
+        print("Form is valid:", form.is_valid())
+        print("Form errors:", form.errors)
+        
+        if form.is_valid():
+            try:
+                print("=== DEBUG: Attempting to save form ===")
+                transaction = form.save()
+                print("=== DEBUG: Form saved successfully ===")
+                messages.success(request, "Transaction added successfully!")
+                return redirect('transactions:transaction_list')
+            except Exception as e:
+                print("=== DEBUG: Error saving form ===")
+                print("Error type:", type(e).__name__)
+                print("Error message:", str(e))
+                logger.error(f"Error saving transaction: {e}", exc_info=True)
+                messages.error(request, f"Error saving transaction: {e}")
+        else:
+            print("=== DEBUG: Form validation failed ===")
+            messages.error(request, "Please fix the form errors below.")
+    
+    else:
+        form = TransactionForm()
+    
+    return render(request, 'transactions/transaction_add.html', {
+        'form': form,
+        'create': True
+    })
