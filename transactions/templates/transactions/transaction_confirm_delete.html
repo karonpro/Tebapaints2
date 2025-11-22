@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-danger shadow-lg">
+                <div class="card-header bg-danger text-white py-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-exclamation-triangle-fill display-6 me-3"></i>
+                        <div>
+                            <h4 class="card-title mb-0">Confirm Deletion</h4>
+                            <p class="mb-0 opacity-75">This action cannot be undone</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-body p-4">
+                    <!-- Warning Alert -->
+                    <div class="alert alert-warning border-warning">
+                        <div class="d-flex">
+                            <i class="bi bi-exclamation-octagon-fill text-warning me-3 fs-4"></i>
+                            <div>
+                                <h5 class="alert-heading">Warning: Irreversible Action</h5>
+                                <p class="mb-0">You are about to permanently delete this transaction record. This will remove all associated data and cannot be recovered.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Transaction Details -->
+                    <div class="card border-0 bg-light mb-4">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-receipt me-2"></i>
+                                Transaction Details
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <table class="table table-sm table-borderless">
+                                        <tr>
+                                            <td><strong>Transaction ID:</strong></td>
+                                            <td><span class="badge bg-dark">#{{ obj.id }}</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Date:</strong></td>
+                                            <td>{{ obj.date }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Location:</strong></td>
+                                            <td>
+                                                {% if obj.location %}
+                                                    <span class="badge bg-primary">{{ obj.location.name }}</span>
+                                                {% else %}
+                                                    <span class="text-muted">No location</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Created:</strong></td>
+                                            <td>{{ obj.created_at|date:"M d, Y H:i" }}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <table class="table table-sm table-borderless">
+                                        <tr>
+                                            <td><strong>Total Sales:</strong></td>
+                                            <td class="text-success fw-bold">UGX {{ obj.total_sales|floatformat:0|intcomma }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Total Cashout:</strong></td>
+                                            <td class="text-danger fw-bold">UGX {{ obj.total_cashout|floatformat:0|intcomma }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Difference:</strong></td>
+                                            <td class="fw-bold {% if obj.difference > 0 %}text-success{% else %}text-danger{% endif %}">
+                                                UGX {{ obj.difference|floatformat:0|intcomma }}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Status:</strong></td>
+                                            <td>
+                                                {% if obj.less_excess > 0 %}
+                                                    <span class="badge bg-danger">Less: UGX {{ obj.less_excess|floatformat:0|intcomma }}</span>
+                                                {% elif obj.less_excess < 0 %}
+                                                    <!-- FIXED: Using absolute value without custom filter -->
+                                                    <span class="badge bg-success">Excess: UGX {{ obj.less_excess|floatformat:0|intcomma|cut:"-" }}</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">Balanced</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            {% if obj.notes %}
+                            <div class="mt-3 p-3 bg-white rounded border">
+                                <strong>Notes:</strong>
+                                <p class="mb-0 text-muted">{{ obj.notes }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Delete Form -->
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'transactions:transaction_list' %}" class="btn btn-secondary btn-lg">
+                                <i class="bi bi-arrow-left-circle me-2"></i>
+                                Cancel & Return to List
+                            </a>
+                            <button type="submit" class="btn btn-danger btn-lg px-4">
+                                <i class="bi bi-trash-fill me-2"></i>
+                                Confirm Permanent Delete
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Additional Warning -->
+            <div class="card border-warning mt-4">
+                <div class="card-body text-center">
+                    <i class="bi bi-shield-exclamation text-warning display-4 mb-3"></i>
+                    <h5 class="text-warning">Data Protection Notice</h5>
+                    <p class="text-muted mb-0">
+                        Deleting this transaction will permanently remove it from the database. 
+                        Please ensure you have appropriate backups if this data is required for future reference.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.card {
+    border-radius: 0.75rem;
+}
+
+.btn-lg {
+    border-radius: 0.5rem;
+    padding: 0.75rem 1.5rem;
+}
+
+.table-borderless td {
+    border: none !important;
+    padding: 0.25rem 0;
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+}
+</style>
+{% endblock %}

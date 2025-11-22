@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Transactions Report</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f0f2f5; padding: 20px; }
+        h1 { text-align: center; color: #333; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; background-color: #fff; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        th, td { padding: 12px 15px; text-align: center; border: 1px solid #ddd; }
+        th { background-color: #4facfe; color: #fff; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #e1f5fe; }
+        .btn { display: inline-block; margin: 10px 5px; padding: 8px 16px; background-color: #4facfe; color: #fff; text-decoration: none; border-radius: 8px; transition: all 0.3s ease; }
+        .btn:hover { background-color: #00f2fe; color: #fff; }
+        input[type="text"] { padding: 5px; border-radius: 4px; border: 1px solid #ccc; }
+        @media (max-width: 768px) { table, th, td { font-size: 14px; } }
+        @media (max-width: 480px) { table, th, td { font-size: 12px; } }
+    </style>
+</head>
+<body>
+    <h1><i class="fas fa-chart-line"></i> Transactions Report</h1>
+
+    <!-- Back button -->
+    <a href="/" class="btn"><i class="fas fa-home"></i> Back to Homepage</a>
+
+    <!-- Search form -->
+    <form method="get" style="text-align:center; margin-bottom: 20px;">
+        <input type="text" name="q" placeholder="Search accounts..." value="{{ query }}">
+        <button type="submit" class="btn">Search</button>
+    </form>
+
+    <!-- Transactions Table -->
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Accounts</th>
+                <th>Cash</th>
+                <th>Type</th>
+                <th>Date</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for transaction in transactions %}
+            <tr onclick="window.location.href='{% url 'transactions:transaction_detail' transaction.id %}'" style="cursor:pointer;">
+                <td>{{ transaction.id }}</td>
+                <td>{{ transaction.accounts|default:"N/A" }}</td>
+                <td>{{ transaction.cash|default:"0" }}</td>
+                <td>{{ transaction.transaction_type|default:"-" }}</td>
+                <td>
+                    {% if transaction.date %}
+                        {{ transaction.date|date:"Y-m-d" }}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+                <td>{{ transaction.notes|default:"-" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6">No transactions found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Pagination controls -->
+    <div style="text-align:center; margin-top:20px;">
+        {% if transactions.has_previous %}
+            <a href="?q={{ query }}&page=1" class="btn">First</a>
+            <a href="?q={{ query }}&page={{ transactions.previous_page_number }}" class="btn">Previous</a>
+        {% endif %}
+
+        Page {{ transactions.number }} of {{ transactions.paginator.num_pages }}
+
+        {% if transactions.has_next %}
+            <a href="?q={{ query }}&page={{ transactions.next_page_number }}" class="btn">Next</a>
+            <a href="?q={{ query }}&page={{ transactions.paginator.num_pages }}" class="btn">Last</a>
+        {% endif %}
+    </div>
+</body>
+</html>

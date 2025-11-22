@@ -1,0 +1,504 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="card-title mb-0">
+                            <i class="fas fa-credit-card me-2"></i>Receive Payment - {{ customer.name }}
+                        </h4>
+                        <a href="{% url 'transactions:customer_detail' customer.id %}" class="btn btn-sm btn-outline-light">
+                            <i class="fas fa-arrow-left me-1"></i> Back to Customer
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    
+                    <!-- Debug Info -->
+                    <div class="alert alert-info d-none">
+                        <strong>Debug Info:</strong><br>
+                        Unpaid Sales: {{ unpaid_sales|length }}<br>
+                        Initial Payment Type: {{ initial_payment_type }}<br>
+                        Preselected Sale: {{ preselected_sale_id }}<br>
+                        Customer Debt: UGX {{ customer.balance|floatformat:0|intcomma }}
+                    </div>
+
+                    <!-- Customer Summary -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card h-100 border-0 bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title text-primary mb-3">
+                                        <i class="fas fa-user me-2"></i>Customer Summary
+                                    </h6>
+                                    <p class="mb-2"><strong>Manual Debt Balance:</strong> 
+                                        <span class="text-danger">UGX {{ customer.balance|floatformat:0|intcomma }}</span>
+                                    </p>
+                                    <p class="mb-2"><strong>Outstanding Invoices:</strong> 
+                                        <span class="text-warning">UGX {{ total_sales_balance|floatformat:0|intcomma }}</span>
+                                    </p>
+                                    <p class="mb-0"><strong>Total Owed:</strong> 
+                                        <span class="text-danger fw-bold">UGX {{ customer.total_balance|floatformat:0|intcomma }}</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card h-100 border-0 bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title text-primary mb-3">
+                                        <i class="fas fa-file-invoice me-2"></i>Outstanding Invoices
+                                        <span class="badge bg-primary ms-2">{{ unpaid_sales|length }}</span>
+                                    </h6>
+                                    {% if unpaid_sales %}
+                                    <div class="sales-list" style="max-height: 120px; overflow-y: auto;">
+                                        {% for sale in unpaid_sales %}
+                                        <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                                            <small class="text-dark">
+                                                <i class="fas fa-file-invoice-dollar me-1"></i>
+                                                {{ sale.document_number }}
+                                            </small>
+                                            <small class="text-danger fw-bold">UGX {{ sale.balance_due|floatformat:0|intcomma }}</small>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% else %}
+                                    <p class="text-muted mb-0">No outstanding invoices found</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form method="post" id="paymentForm">
+                        {% csrf_token %}
+                        
+                        {% if messages %}
+                        <div class="mb-4">
+                            {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <!-- Payment Type Selection -->
+                        <div class="card mb-4 border-success">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-cog me-2"></i>Where to Apply Payment?
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check card-option">
+                                            <input class="form-check-input" type="radio" name="payment_type" 
+                                                   id="payment_type_debt" value="debt" 
+                                                   {% if initial_payment_type == 'debt' %}checked{% endif %}>
+                                            <label class="form-check-label fw-bold fs-5" for="payment_type_debt">
+                                                💰 Manual Debt
+                                            </label>
+                                            <div class="form-text text-muted mt-2">
+                                                Reduce customer's general debt balance
+                                                <br><strong>Available: UGX {{ customer.balance|floatformat:0|intcomma }}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check card-option">
+                                            <input class="form-check-input" type="radio" name="payment_type" 
+                                                   id="payment_type_sale" value="sale" 
+                                                   {% if initial_payment_type == 'sale' %}checked{% endif %}
+                                                   {% if not unpaid_sales %}disabled{% endif %}>
+                                            <label class="form-check-label fw-bold fs-5" for="payment_type_sale">
+                                                📄 Specific Invoice
+                                            </label>
+                                            <div class="form-text text-muted mt-2">
+                                                Pay against a specific sale/invoice
+                                                {% if unpaid_sales %}
+                                                <br><strong>Available: {{ unpaid_sales|length }} invoices</strong>
+                                                {% else %}
+                                                <br><span class="text-warning">No unpaid invoices available</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Invoice Selection -->
+                                <div id="invoiceSelection" class="mt-4 p-3 border rounded bg-light" 
+                                     style="display: {% if initial_payment_type == 'sale' %}block{% else %}none{% endif %};">
+                                    <label class="form-label fw-bold fs-6">
+                                        <i class="fas fa-file-invoice me-2"></i>Select Invoice to Pay
+                                    </label>
+                                    <select class="form-select form-select-lg" name="sale_id" id="saleSelect">
+                                        <option value="">-- Choose an invoice --</option>
+                                        {% for sale in unpaid_sales %}
+                                        <option value="{{ sale.id }}" 
+                                                data-balance="{{ sale.balance_due }}"
+                                                {% if sale.id|stringformat:"i" == initial_sale_id %}selected{% endif %}>
+                                            {{ sale.document_number }} - UGX {{ sale.balance_due|floatformat:0|intcomma }} 
+                                            ({{ sale.date|date:"M d, Y" }})
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text">
+                                        Choose which specific invoice this payment should cover
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Payment Details -->
+                        <div class="card mb-4 border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-money-bill-wave me-2"></i>Payment Details
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="amount" class="form-label fw-bold">
+                                                Amount <span class="text-danger">*</span>
+                                            </label>
+                                            <div class="input-group input-group-lg">
+                                                <span class="input-group-text bg-success text-white">UGX</span>
+                                                <input type="number" class="form-control form-control-lg" id="amount" 
+                                                       name="amount" step="0.01" min="0.01" required
+                                                       placeholder="0.00">
+                                            </div>
+                                            <div class="form-text">
+                                                Maximum allowed: <strong id="maxAmountDisplay">UGX {{ customer.balance|floatformat:0|intcomma }}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="payment_method" class="form-label fw-bold">
+                                                Payment Method <span class="text-danger">*</span>
+                                            </label>
+                                            <select class="form-select form-select-lg" id="payment_method" name="payment_method" required>
+                                                <option value="">-- Select payment method --</option>
+                                                <option value="cash">💵 Cash</option>
+                                                <option value="bank_transfer">🏦 Bank Transfer</option>
+                                                <option value="mobile_money">📱 Mobile Money</option>
+                                                <option value="cheque">📄 Cheque</option>
+                                                <option value="credit_card">💳 Credit Card</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="payment_date" class="form-label fw-bold">
+                                                Payment Date <span class="text-danger">*</span>
+                                            </label>
+                                            <input type="datetime-local" class="form-control form-control-lg" id="payment_date" 
+                                                   name="payment_date" value="{{ default_date }}" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="reference_number" class="form-label fw-bold">
+                                                Reference Number
+                                            </label>
+                                            <input type="text" class="form-control form-control-lg" id="reference_number" 
+                                                   name="reference_number" placeholder="Receipt #, Transaction ID, etc.">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="notes" class="form-label fw-bold">Payment Notes</label>
+                                    <textarea class="form-control" id="notes" name="notes" 
+                                              rows="3" placeholder="Additional payment details or notes..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Payment Summary -->
+                        <div class="card mb-4 border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-calculator me-2"></i>Payment Summary
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-md-3 mb-3">
+                                        <div class="border rounded p-3 bg-light h-100">
+                                            <h6 class="text-muted mb-2">Current Balance</h6>
+                                            <h4 class="text-danger fw-bold" id="currentBalance">
+                                                UGX {{ customer.balance|floatformat:0|intcomma }}
+                                            </h4>
+                                            <small class="text-muted" id="balanceType">Manual Debt</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <div class="border rounded p-3 bg-light h-100">
+                                            <h6 class="text-muted mb-2">This Payment</h6>
+                                            <h4 class="text-primary fw-bold" id="paymentAmount">UGX 0</h4>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <div class="border rounded p-3 bg-light h-100">
+                                            <h6 class="text-muted mb-2">Remaining Balance</h6>
+                                            <h4 class="text-success fw-bold" id="remainingBalance">
+                                                UGX {{ customer.balance|floatformat:0|intcomma }}
+                                            </h4>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <div class="border rounded p-3 bg-light h-100">
+                                            <h6 class="text-muted mb-2">Status</h6>
+                                            <h5 id="paymentStatus" class="fw-bold text-muted">-</h5>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'transactions:customer_detail' customer.id %}" 
+                               class="btn btn-outline-secondary btn-lg me-md-2">
+                                <i class="fas fa-times me-2"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-success btn-lg px-5" id="submitBtn">
+                                <i class="fas fa-check-circle me-2"></i> Process Payment
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const paymentTypeDebt = document.getElementById('payment_type_debt');
+    const paymentTypeSale = document.getElementById('payment_type_sale');
+    const invoiceSelection = document.getElementById('invoiceSelection');
+    const saleSelect = document.getElementById('saleSelect');
+    const amountInput = document.getElementById('amount');
+    const maxAmountDisplay = document.getElementById('maxAmountDisplay');
+    const currentBalanceSpan = document.getElementById('currentBalance');
+    const paymentAmountSpan = document.getElementById('paymentAmount');
+    const remainingBalanceSpan = document.getElementById('remainingBalance');
+    const balanceTypeSpan = document.getElementById('balanceType');
+    const paymentStatusSpan = document.getElementById('paymentStatus');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    const customerDebt = {{ customer.balance }};
+    let currentMaxAmount = customerDebt;
+    let currentBalance = customerDebt;
+
+    // Debug info
+    console.log('Customer Debt:', customerDebt);
+    console.log('Unpaid Sales:', {{ unpaid_sales|length }});
+    console.log('Initial Payment Type:', '{{ initial_payment_type }}');
+
+    // Event Listeners
+    paymentTypeDebt.addEventListener('change', updateForm);
+    paymentTypeSale.addEventListener('change', updateForm);
+    saleSelect.addEventListener('change', updateMaxAmount);
+    amountInput.addEventListener('input', updateSummary);
+
+    function updateForm() {
+        console.log('Payment type changed:', paymentTypeDebt.checked ? 'debt' : 'sale');
+        
+        if (paymentTypeSale.checked) {
+            invoiceSelection.style.display = 'block';
+            balanceTypeSpan.textContent = 'Invoice Balance';
+            updateMaxAmount();
+        } else {
+            invoiceSelection.style.display = 'none';
+            balanceTypeSpan.textContent = 'Manual Debt';
+            currentMaxAmount = customerDebt;
+            currentBalance = customerDebt;
+            maxAmountDisplay.textContent = 'UGX ' + customerDebt.toLocaleString();
+            currentBalanceSpan.textContent = 'UGX ' + customerDebt.toLocaleString();
+            updateSummary();
+        }
+        updateSubmitButton();
+    }
+
+    function updateMaxAmount() {
+        if (paymentTypeSale.checked && saleSelect.value) {
+            const selectedOption = saleSelect.options[saleSelect.selectedIndex];
+            const saleBalance = parseFloat(selectedOption.getAttribute('data-balance'));
+            currentMaxAmount = saleBalance;
+            currentBalance = saleBalance;
+            maxAmountDisplay.textContent = 'UGX ' + saleBalance.toLocaleString();
+            currentBalanceSpan.textContent = 'UGX ' + saleBalance.toLocaleString();
+            
+            // Auto-fill amount with invoice balance
+            amountInput.value = saleBalance;
+            console.log('Selected invoice balance:', saleBalance);
+        } else {
+            currentMaxAmount = customerDebt;
+            currentBalance = customerDebt;
+            maxAmountDisplay.textContent = 'UGX ' + customerDebt.toLocaleString();
+            currentBalanceSpan.textContent = 'UGX ' + customerDebt.toLocaleString();
+        }
+        updateSummary();
+        updateSubmitButton();
+    }
+
+    function updateSummary() {
+        const amount = parseFloat(amountInput.value) || 0;
+        const remaining = Math.max(0, currentBalance - amount);
+        
+        paymentAmountSpan.textContent = 'UGX ' + amount.toLocaleString();
+        remainingBalanceSpan.textContent = 'UGX ' + remaining.toLocaleString();
+        
+        // Update payment status
+        if (amount === 0) {
+            paymentStatusSpan.textContent = '-';
+            paymentStatusSpan.className = 'fw-bold text-muted';
+        } else if (amount === currentBalance) {
+            paymentStatusSpan.textContent = 'FULL PAYMENT';
+            paymentStatusSpan.className = 'fw-bold text-success';
+        } else if (amount > currentBalance) {
+            paymentStatusSpan.textContent = 'OVERPAYMENT';
+            paymentStatusSpan.className = 'fw-bold text-danger';
+        } else {
+            paymentStatusSpan.textContent = 'PARTIAL PAYMENT';
+            paymentStatusSpan.className = 'fw-bold text-warning';
+        }
+        
+        // Validate amount
+        if (amount > currentMaxAmount) {
+            amountInput.classList.add('is-invalid');
+        } else {
+            amountInput.classList.remove('is-invalid');
+        }
+        
+        updateSubmitButton();
+    }
+
+    function updateSubmitButton() {
+        const amount = parseFloat(amountInput.value) || 0;
+        const hasPaymentMethod = document.getElementById('payment_method').value !== '';
+        const isValidAmount = amount > 0 && amount <= currentMaxAmount;
+        
+        if (paymentTypeSale.checked) {
+            const hasSelectedSale = saleSelect.value !== '';
+            submitBtn.disabled = !(hasSelectedSale && hasPaymentMethod && isValidAmount);
+        } else {
+            submitBtn.disabled = !(hasPaymentMethod && isValidAmount);
+        }
+    }
+
+    // Form validation
+    document.getElementById('paymentForm').addEventListener('submit', function(e) {
+        const amount = parseFloat(amountInput.value) || 0;
+        
+        if (amount <= 0) {
+            e.preventDefault();
+            alert('❌ Please enter a valid payment amount.');
+            amountInput.focus();
+            return false;
+        }
+        
+        if (amount > currentMaxAmount) {
+            e.preventDefault();
+            alert(`❌ Payment amount cannot exceed UGX ${currentMaxAmount.toLocaleString()}`);
+            amountInput.focus();
+            return false;
+        }
+        
+        if (paymentTypeSale.checked && !saleSelect.value) {
+            e.preventDefault();
+            alert('❌ Please select an invoice for payment.');
+            saleSelect.focus();
+            return false;
+        }
+        
+        const paymentMethod = document.getElementById('payment_method').value;
+        if (!paymentMethod) {
+            e.preventDefault();
+            alert('❌ Please select a payment method.');
+            document.getElementById('payment_method').focus();
+            return false;
+        }
+    });
+
+    // Initialize form based on initial state
+    updateForm();
+    
+    // If we have a preselected sale, trigger the change
+    if ('{{ initial_payment_type }}' === 'sale' && '{{ initial_sale_id }}') {
+        setTimeout(() => {
+            saleSelect.dispatchEvent(new Event('change'));
+        }, 100);
+    }
+});
+</script>
+
+<style>
+.card-option {
+    padding: 1rem;
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.card-option:hover {
+    border-color: #0d6efd;
+    background-color: #f8f9fa;
+}
+
+.card-option .form-check-input:checked {
+    background-color: #198754;
+    border-color: #198754;
+}
+
+.card-option .form-check-input:checked ~ .form-check-label {
+    color: #198754;
+}
+
+.card-option .form-check-input:checked ~ .form-text {
+    color: #198754 !important;
+}
+
+.form-control-lg, .form-select-lg {
+    border-radius: 8px;
+}
+
+#invoiceSelection {
+    transition: all 0.3s ease-in-out;
+}
+
+#submitBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.sales-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sales-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.sales-list::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+</style>
+{% endblock %}

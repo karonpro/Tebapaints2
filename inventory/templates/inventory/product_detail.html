@@ -1,0 +1,432 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card bg-gradient-primary shadow-lg">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <nav aria-label="breadcrumb">
+                                <ol class="breadcrumb breadcrumb-dark breadcrumb-transparent">
+                                    <li class="breadcrumb-item">
+                                        <a href="{% url 'inventory:product_list' %}">
+                                            <i class="fas fa-boxes me-2"></i>Products
+                                        </a>
+                                    </li>
+                                    <li class="breadcrumb-item active" aria-current="page">{{ product.name }}</li>
+                                </ol>
+                            </nav>
+                            <h1 class="h2 text-white mb-2">{{ product.name }}</h1>
+                            <p class="text-white-50 mb-0">
+                                <strong>SKU:</strong> {{ product.sku }} | 
+                                <strong>Category:</strong> {{ product.category.name|default:"Uncategorized" }}
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <div class="btn-group">
+                                <a href="{% url 'inventory:product_edit' product.id %}" class="btn btn-light btn-sm">
+                                    <i class="fas fa-edit me-2"></i>Edit Product
+                                </a>
+                                <a href="{% url 'inventory:product_list' %}" class="btn btn-outline-light btn-sm">
+                                    <i class="fas fa-arrow-left me-2"></i>Back to List
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Current Stock
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ current_stock }} units</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-boxes fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Total Sold
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_sold }} units</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Cost Price
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">UGX {{ product.cost_price|floatformat:0 }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-money-bill-wave fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Selling Price
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">UGX {{ product.selling_price|floatformat:0 }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-tags fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Product Information -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-info-circle text-primary me-2"></i>Product Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label text-muted small mb-1">Product Name</label>
+                        <p class="fw-bold mb-0">{{ product.name }}</p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small mb-1">SKU Code</label>
+                        <p class="fw-bold text-monospace mb-0">{{ product.sku }}</p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small mb-1">Category</label>
+                        <p class="mb-0">
+                            <span class="badge bg-primary">{{ product.category.name|default:"Uncategorized" }}</span>
+                        </p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small mb-1">Cost Price</label>
+                        <p class="fw-bold text-success mb-0">UGX {{ product.cost_price|floatformat:0 }}</p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small mb-1">Selling Price</label>
+                        <p class="fw-bold text-danger mb-0">UGX {{ product.selling_price|floatformat:0 }}</p>
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label text-muted small mb-1">Reorder Level</label>
+                        <p class="fw-bold mb-0">{{ product.reorder_level }} units</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stock by Location -->
+            <div class="card shadow mt-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-map-marker-alt text-info me-2"></i>Stock by Location
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if stocks %}
+                        {% for stock in stocks %}
+                        <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                            <div>
+                                <h6 class="mb-1">{{ stock.location.name }}</h6>
+                                <small class="text-muted">Last updated</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge {% if stock.quantity <= product.reorder_level %}bg-danger{% else %}bg-success{% endif %} fs-6">
+                                    {{ stock.quantity }} units
+                                </span>
+                                {% if stock.quantity <= product.reorder_level %}
+                                <small class="text-danger d-block">Low Stock</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted mb-0">No stock records found.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sales & Purchase History -->
+        <div class="col-lg-8">
+            <!-- Sales History -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-shopping-bag text-success me-2"></i>Sales History
+                    </h5>
+                    <span class="badge bg-success">{{ sale_items|length }} sales</span>
+                </div>
+                <div class="card-body">
+                    {% if sale_items %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Sale #</th>
+                                    <th>Customer</th>
+                                    <th class="text-center">Qty</th>
+                                    <th class="text-end">Unit Price</th>
+                                    <th class="text-end">Total</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in sale_items|slice:":10" %}
+                                <tr>
+                                    <td>
+                                        <small class="text-muted">{{ item.sale.date|date:"M d, Y" }}</small>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'inventory:print_sale' item.sale.id %}" class="text-decoration-none" target="_blank">
+                                            <strong>{{ item.sale.document_number }}</strong>
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {% if item.sale.customer %}
+                                            {{ item.sale.customer.name }}
+                                        {% else %}
+                                            <span class="text-muted">Walk-in</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary rounded-pill">{{ item.quantity }}</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong>UGX {{ item.unit_price|floatformat:0 }}</strong>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong class="text-success">UGX {{ item.total_price|floatformat:0 }}</strong>
+                                    </td>
+                                    <td>
+                                        {% if item.sale.document_status == 'paid' %}
+                                            <span class="badge bg-success">Paid</span>
+                                        {% elif item.sale.document_status == 'sent' %}
+                                            <span class="badge bg-info">Sent</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ item.sale.document_status }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if sale_items|length > 10 %}
+                    <div class="text-center mt-3">
+                        <small class="text-muted">Showing 10 of {{ sale_items|length }} sales</small>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-shopping-bag fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No sales recorded for this product.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Purchase History -->
+            <div class="card shadow">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-cart-plus text-primary me-2"></i>Purchase History
+                    </h5>
+                    <span class="badge bg-primary">{{ purchases|length }} purchases</span>
+                </div>
+                <div class="card-body">
+                    {% if purchases %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Supplier</th>
+                                    <th class="text-center">Qty</th>
+                                    <th class="text-end">Unit Price</th>
+                                    <th class="text-end">Total Cost</th>
+                                    <th>Location</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for purchase in purchases|slice:":10" %}
+                                <tr>
+                                    <td>
+                                        <small class="text-muted">{{ purchase.date|date:"M d, Y" }}</small>
+                                    </td>
+                                    <td>
+                                        <strong>{{ purchase.supplier_name|default:"N/A" }}</strong>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-info rounded-pill">{{ purchase.quantity }}</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong>UGX {{ purchase.purchase_price|floatformat:0 }}</strong>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong class="text-warning">UGX {{ purchase.get_total_cost|floatformat:0 }}</strong>
+                                    </td>
+                                    <td>
+                                        {% if purchase.location %}
+                                            <span class="badge bg-secondary">{{ purchase.location.name }}</span>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if purchases|length > 10 %}
+                    <div class="text-center mt-3">
+                        <small class="text-muted">Showing 10 of {{ purchases|length }} purchases</small>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-cart-plus fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No purchases recorded for this product.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-body text-center">
+                    <div class="btn-group">
+                        <a href="{% url 'inventory:sale_add' %}" class="btn btn-success">
+                            <i class="fas fa-cash-register me-2"></i>Sell This Product
+                        </a>
+                        <a href="{% url 'inventory:purchase_add' %}" class="btn btn-primary">
+                            <i class="fas fa-cart-plus me-2"></i>Purchase More
+                        </a>
+                        <a href="{% url 'inventory:product_edit' product.id %}" class="btn btn-warning">
+                            <i class="fas fa-edit me-2"></i>Edit Product
+                        </a>
+                        <a href="{% url 'inventory:transfer_add' %}" class="btn btn-info">
+                            <i class="fas fa-truck me-2"></i>Transfer Stock
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    border: none;
+    border-radius: 12px;
+}
+.card-header {
+    border-radius: 12px 12px 0 0 !important;
+    border-bottom: 1px solid #e3e6f0;
+}
+.breadcrumb {
+    background: transparent;
+    padding: 0;
+}
+.border-left-primary {
+    border-left: 4px solid #4e73df;
+}
+.border-left-success {
+    border-left: 4px solid #1cc88a;
+}
+.border-left-info {
+    border-left: 4px solid #36b9cc;
+}
+.border-left-warning {
+    border-left: 4px solid #f6c23e;
+}
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
+}
+.shadow-lg {
+    box-shadow: 0 1rem 3rem rgba(0,0,0,.175) !important;
+}
+.table th {
+    border-top: none;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    color: #6e707e;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add smooth animations
+    const cards = document.querySelectorAll('.card');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        card.style.transition = 'all 0.5s ease';
+        
+        setTimeout(() => {
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
+
+    // Add hover effects to table rows
+    const tableRows = document.querySelectorAll('tbody tr');
+    tableRows.forEach(row => {
+        row.addEventListener('mouseenter', function() {
+            this.style.backgroundColor = '#f8f9fa';
+            this.style.transition = 'background-color 0.2s ease';
+        });
+        row.addEventListener('mouseleave', function() {
+            this.style.backgroundColor = '';
+        });
+    });
+});
+</script>
+{% endblock %}

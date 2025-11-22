@@ -181,7 +181,7 @@ AUTHENTICATION_BACKENDS = [
 # =======================
 
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_AGE = 1800
+SESSION_COOKIE_AGE = 86400
 SESSION_SAVE_EVERY_REQUEST = True
 
 if IS_PRODUCTION:

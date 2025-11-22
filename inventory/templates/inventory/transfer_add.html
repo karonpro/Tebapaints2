@@ -1,0 +1,1056 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-white">
+            <i class="fas fa-exchange-alt me-2"></i>Create New Stock Transfer
+        </h2>
+        <a href="{% url 'inventory:transfer_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Back to Transfers
+        </a>
+    </div>
+
+    <!-- Display messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                <div class="d-flex align-items-center">
+                    <i class="fas 
+                        {% if message.tags == 'success' %}fa-check-circle
+                        {% elif message.tags == 'error' or message.tags == 'danger' %}fa-exclamation-circle
+                        {% elif message.tags == 'warning' %}fa-exclamation-triangle
+                        {% else %}fa-info-circle{% endif %} 
+                        me-2"></i>
+                    <span>{{ message }}</span>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header" style="background: #1e293b; border-bottom: 1px solid #374151;">
+            <h5 class="card-title mb-0 text-white">
+                <i class="fas fa-truck-loading me-2"></i>Transfer Information
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" id="transferForm">
+                {% csrf_token %}
+                
+                <!-- Location Selection -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">
+                                <i class="fas fa-arrow-from-right me-1"></i>From Location *
+                            </label>
+                            {% if locations %}
+                                <select name="from_location" class="form-select" id="id_from_location" required onchange="updateAllStockInfo()">
+                                    <option value="">Select Source Location</option>
+                                    {% for location in locations %}
+                                        <option value="{{ location.id }}">
+                                            {{ location.name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text text-muted">Location where stock is currently stored</div>
+                            {% else %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    No locations available. Please contact administrator.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">
+                                <i class="fas fa-arrow-to-right me-1"></i>To Location *
+                            </label>
+                            {% if locations %}
+                                <select name="to_location" class="form-select" id="id_to_location" required>
+                                    <option value="">Select Destination Location</option>
+                                    {% for location in locations %}
+                                        <option value="{{ location.id }}">
+                                            {{ location.name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text text-muted">Location where stock will be transferred</div>
+                            {% else %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    No locations available. Please contact administrator.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Transfer Details -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">
+                                <i class="fas fa-calendar-alt me-1"></i>Transfer Date
+                            </label>
+                            <input type="datetime-local" name="transfer_date" class="form-control" 
+                                   value="{{ default_date }}" id="transferDate">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">
+                                <i class="fas fa-sticky-note me-1"></i>Notes
+                            </label>
+                            <textarea name="notes" class="form-control" rows="2" 
+                                      placeholder="Any notes about this transfer..." id="id_notes"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Transfer Status -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Transfer Status</label>
+                            <input type="text" id="transferStatus" class="form-control" readonly 
+                                   value="{% if locations %}Select Locations First{% else %}No Locations Available{% endif %}">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Transfer Summary</label>
+                            <input type="text" id="transferSummary" class="form-control" readonly value="Add Products to View Summary">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Products Section -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h5 class="text-white">
+                                <i class="fas fa-boxes me-2"></i>Products to Transfer
+                            </h5>
+                            <small class="text-muted">Add products and quantities for transfer</small>
+                        </div>
+                        {% if locations %}
+                            <button type="button" class="btn btn-primary" id="addProductBtn">
+                                <i class="fas fa-plus me-1"></i>Add Product
+                            </button>
+                        {% else %}
+                            <button type="button" class="btn btn-secondary" disabled>
+                                <i class="fas fa-exclamation-triangle me-1"></i>No Locations Available
+                            </button>
+                        {% endif %}
+                    </div>
+
+                    <!-- Stock Warning Alert -->
+                    <div class="alert alert-warning" id="stockWarning" style="display: none;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span id="stockWarningText"></span>
+                    </div>
+
+                    <!-- Products Table -->
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover" id="productsTable">
+                            <thead class="table-light" style="background: #1e293b; color: var(--muted);">
+                                <tr>
+                                    <th width="40%">Product</th>
+                                    <th width="20%">Available Stock</th>
+                                    <th width="25%">Transfer Quantity</th>
+                                    <th width="15%" class="text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsTableBody">
+                                <!-- Product rows will be added here dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Empty State -->
+                    <div id="emptyState" class="text-center py-5" style="display: none;">
+                        <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No Products Added</h5>
+                        <p class="text-muted">Click "Add Product" to start adding items for transfer</p>
+                    </div>
+                </div>
+
+                <!-- Hidden field for products data -->
+                <input type="hidden" name="items_data" id="itemsData" value="[]">
+
+                <!-- Form Actions -->
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-success" id="submitBtn" {% if not locations %}disabled{% endif %}>
+                        <i class="fas fa-exchange-alt me-1"></i>Create Transfer
+                    </button>
+                    <button type="button" class="btn btn-outline-warning" id="resetButton" {% if not locations %}disabled{% endif %}>
+                        <i class="fas fa-undo me-1"></i>Reset Form
+                    </button>
+                    <a href="{% url 'inventory:transfer_list' %}" class="btn btn-outline-danger">
+                        <i class="fas fa-times me-1"></i>Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Help Section -->
+    <div class="card mt-4">
+        <div class="card-header" style="background: #1e293b; border-bottom: 1px solid #374151;">
+            <h6 class="mb-0 text-white">
+                <i class="fas fa-info-circle me-1"></i>Transfer Guidelines
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="d-flex">
+                        <i class="fas fa-check-circle text-success me-3 mt-1"></i>
+                        <div>
+                            <strong class="text-white">Location Selection</strong>
+                            <p class="text-muted mb-0">Choose valid source and destination locations</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex">
+                        <i class="fas fa-check-circle text-success me-3 mt-1"></i>
+                        <div>
+                            <strong class="text-white">Stock Availability</strong>
+                            <p class="text-muted mb-0">Transfer quantity cannot exceed available stock</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex">
+                        <i class="fas fa-check-circle text-success me-3 mt-1"></i>
+                        <div>
+                            <strong class="text-white">Product Search</strong>
+                            <p class="text-muted mb-0">Use search to quickly find products by name or SKU</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex">
+                        <i class="fas fa-check-circle text-success me-3 mt-1"></i>
+                        <div>
+                            <strong class="text-white">Auto Updates</strong>
+                            <p class="text-muted mb-0">Stock updates automatically when transfer is confirmed</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Use CDN for reliability -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Transfer form initialized');
+    console.log('Locations available:', {{ locations|length }});
+    
+    let rowCounter = 0;
+    let currentFromLocationId = null;
+    const productsTableBody = document.getElementById('productsTableBody');
+    const addProductBtn = document.getElementById('addProductBtn');
+    const transferForm = document.getElementById('transferForm');
+    const itemsData = document.getElementById('itemsData');
+    const transferStatus = document.getElementById('transferStatus');
+    const transferSummary = document.getElementById('transferSummary');
+    const stockWarning = document.getElementById('stockWarning');
+    const stockWarningText = document.getElementById('stockWarningText');
+    const emptyState = document.getElementById('emptyState');
+    const fromLocationSelect = document.getElementById('id_from_location');
+    const toLocationSelect = document.getElementById('id_to_location');
+
+    // Check if locations are available
+    const locationsAvailable = {{ locations|length }} > 0;
+    
+    if (!locationsAvailable) {
+        console.error('No locations available for this user');
+        transferStatus.value = 'No Locations Available';
+        transferStatus.className = 'form-control bg-danger text-white';
+        transferSummary.value = 'No Locations Available';
+        transferSummary.className = 'form-control bg-danger text-white';
+        return;
+    }
+
+    // Format numbers
+    function formatNumber(number) {
+        return new Intl.NumberFormat('en-US').format(number);
+    }
+
+    // Update transfer status
+    function updateTransferStatus() {
+        const fromLocation = fromLocationSelect.value;
+        const toLocation = toLocationSelect.value;
+        const items = JSON.parse(itemsData.value || '[]');
+        const totalItems = items.length;
+        const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+        
+        if (!fromLocation || !toLocation) {
+            transferStatus.value = 'Select Locations First';
+            transferStatus.className = 'form-control bg-secondary text-white';
+        } else if (fromLocation === toLocation) {
+            transferStatus.value = 'Same Location - Invalid';
+            transferStatus.className = 'form-control bg-danger text-white';
+        } else if (totalItems === 0) {
+            transferStatus.value = 'Add Products to Transfer';
+            transferStatus.className = 'form-control bg-warning text-dark';
+        } else {
+            transferStatus.value = 'Ready to Transfer';
+            transferStatus.className = 'form-control bg-success text-white';
+        }
+        
+        // Update summary
+        if (totalItems > 0) {
+            transferSummary.value = `${totalItems} product(s), ${formatNumber(totalQuantity)} total units`;
+            transferSummary.className = 'form-control bg-info text-white';
+        } else {
+            transferSummary.value = 'Add Products to View Summary';
+            transferSummary.className = 'form-control bg-secondary text-white';
+        }
+    }
+
+    // Get stock for a product at current from location
+    async function getProductStock(productId) {
+        if (!currentFromLocationId) return 0;
+        
+        try {
+            const response = await fetch(`/inventory/api/stock/${productId}/${currentFromLocationId}/`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            return data.quantity || 0;
+        } catch (error) {
+            console.error('Error fetching stock:', error);
+            return 0;
+        }
+    }
+
+    // Update stock information for all rows
+    async function updateAllStockInfo() {
+        currentFromLocationId = fromLocationSelect ? fromLocationSelect.value : null;
+        
+        if (!currentFromLocationId) {
+            // Disable add product button
+            if (addProductBtn) {
+                addProductBtn.disabled = true;
+                addProductBtn.innerHTML = '<i class="fas fa-plus me-1"></i>Add Product (Select From Location First)';
+                addProductBtn.className = 'btn btn-secondary';
+            }
+            
+            // Clear all stock info
+            document.querySelectorAll('.stock-info').forEach(el => {
+                el.textContent = 'Select From Location';
+                el.className = 'stock-info text-muted';
+            });
+            
+            if (stockWarning) stockWarning.style.display = 'none';
+            updateTransferStatus();
+            updateEmptyState();
+            return;
+        }
+        
+        // Enable add product button
+        if (addProductBtn) {
+            addProductBtn.disabled = false;
+            addProductBtn.innerHTML = '<i class="fas fa-plus me-1"></i>Add Product';
+            addProductBtn.className = 'btn btn-primary';
+        }
+        
+        // Update stock for each product row
+        let lowStockCount = 0;
+        let outOfStockCount = 0;
+        
+        const rows = document.querySelectorAll('.product-row');
+        for (const row of rows) {
+            const productSelect = row.querySelector('.product-select');
+            const productId = productSelect.value;
+            const stockInfo = row.querySelector('.stock-info');
+            const quantityInput = row.querySelector('.quantity');
+            
+            if (productId) {
+                const stock = await getProductStock(productId);
+                stockInfo.textContent = formatNumber(stock);
+                
+                // Update styling based on stock
+                if (stock === 0) {
+                    stockInfo.className = 'stock-info text-danger fw-bold';
+                    outOfStockCount++;
+                } else if (stock < parseInt(quantityInput.value || 1)) {
+                    stockInfo.className = 'stock-info text-warning fw-bold';
+                    lowStockCount++;
+                } else {
+                    stockInfo.className = 'stock-info text-success';
+                }
+                
+                // Show warning if quantity exceeds stock
+                const quantity = parseInt(quantityInput.value) || 0;
+                if (quantity > stock) {
+                    row.style.backgroundColor = '#450a0a';
+                    showStockWarning(`Quantity exceeds available stock for ${productSelect.options[productSelect.selectedIndex].text}`);
+                } else {
+                    row.style.backgroundColor = '';
+                }
+            }
+        }
+        
+        // Show overall stock warning
+        if (outOfStockCount > 0 || lowStockCount > 0) {
+            let warningMsg = '';
+            if (outOfStockCount > 0) {
+                warningMsg += `${outOfStockCount} product(s) out of stock. `;
+            }
+            if (lowStockCount > 0) {
+                warningMsg += `${lowStockCount} product(s) have low stock.`;
+            }
+            showStockWarning(warningMsg);
+        } else {
+            hideStockWarning();
+        }
+        
+        updateTransferStatus();
+        updateEmptyState();
+    }
+
+    // Show stock warning
+    function showStockWarning(message) {
+        if (stockWarningText && stockWarning) {
+            stockWarningText.textContent = message;
+            stockWarning.style.display = 'block';
+        }
+    }
+
+    // Hide stock warning
+    function hideStockWarning() {
+        if (stockWarning) {
+            stockWarning.style.display = 'none';
+        }
+    }
+
+    // Update empty state visibility
+    function updateEmptyState() {
+        const hasRows = productsTableBody.children.length > 0;
+        const productsTable = document.getElementById('productsTable');
+        
+        if (emptyState) {
+            emptyState.style.display = hasRows ? 'none' : 'block';
+        }
+        if (productsTable) {
+            productsTable.style.display = hasRows ? 'table' : 'none';
+        }
+    }
+
+    // Create a new product row
+    function createProductRow() {
+        rowCounter++;
+        const rowId = `row-${rowCounter}`;
+        
+        const row = document.createElement('tr');
+        row.className = 'product-row';
+        row.id = rowId;
+        
+        row.innerHTML = `
+            <td>
+                <select class="form-select product-select" name="product_${rowCounter}" required>
+                    <option value="">Select Product</option>
+                </select>
+            </td>
+            <td>
+                <span class="stock-info text-muted">Select From Location</span>
+            </td>
+            <td>
+                <div class="input-group">
+                    <input type="number" class="form-control quantity" name="quantity_${rowCounter}" 
+                           min="1" value="1" step="1" required onchange="validateStock(this)">
+                    <button type="button" class="btn btn-outline-secondary decrement-btn">
+                        <i class="fas fa-minus"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary increment-btn">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn btn-danger btn-sm remove-row">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        
+        return row;
+    }
+
+    // Validate stock when quantity changes
+    async function validateStock(input) {
+        const row = input.closest('.product-row');
+        const productSelect = row.querySelector('.product-select');
+        const stockInfo = row.querySelector('.stock-info');
+        const quantity = parseInt(input.value) || 0;
+        
+        if (currentFromLocationId && productSelect.value) {
+            const stock = await getProductStock(productSelect.value);
+            
+            if (quantity > stock) {
+                showStockWarning(`Quantity (${quantity}) exceeds available stock (${stock})`);
+                row.style.backgroundColor = '#450a0a';
+                input.classList.add('is-invalid');
+            } else {
+                row.style.backgroundColor = '';
+                input.classList.remove('is-invalid');
+                hideStockWarning();
+            }
+            
+            // Update stock display
+            stockInfo.textContent = formatNumber(stock);
+            if (stock === 0) {
+                stockInfo.className = 'stock-info text-danger fw-bold';
+            } else if (stock < quantity) {
+                stockInfo.className = 'stock-info text-warning fw-bold';
+            } else {
+                stockInfo.className = 'stock-info text-success';
+            }
+        }
+        
+        recalcItemsData();
+        updateTransferStatus();
+    }
+
+    // Add event listeners to a row
+    function setupRowEvents(row) {
+        const productSelect = row.querySelector('.product-select');
+        const quantityInput = row.querySelector('.quantity');
+        const removeBtn = row.querySelector('.remove-row');
+        const stockInfo = row.querySelector('.stock-info');
+        const incrementBtn = row.querySelector('.increment-btn');
+        const decrementBtn = row.querySelector('.decrement-btn');
+        
+        // Initialize Select2 for product selection
+        $(productSelect).select2({
+            placeholder: "Search product by name or SKU...",
+            allowClear: true,
+            width: '100%',
+            minimumInputLength: 1,
+            ajax: {
+                url: "{% url 'inventory:product_search_api' %}",
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return {
+                        q: params.term,
+                        page: params.page
+                    };
+                },
+                processResults: function(data) {
+                    return {
+                        results: data.products.map(product => ({
+                            id: product.id,
+                            text: `${product.name} (${product.sku || 'No SKU'})`,
+                            product: product
+                        }))
+                    };
+                },
+                cache: true
+            },
+            templateResult: function(product) {
+                if (product.loading) return product.text;
+                return $(
+                    `<div class="product-option">
+                        <div class="fw-bold">${product.text}</div>
+                        <small class="text-muted">Category: ${product.product?.category || 'General'}</small>
+                    </div>`
+                );
+            }
+        });
+        
+        // Product selection handler
+        $(productSelect).on('change', async function() {
+            const productId = this.value;
+            
+            // Update stock info when product is selected
+            if (productId && currentFromLocationId) {
+                const stock = await getProductStock(productId);
+                stockInfo.textContent = formatNumber(stock);
+                
+                if (stock === 0) {
+                    stockInfo.className = 'stock-info text-danger fw-bold';
+                    showStockWarning('Selected product is out of stock at this location');
+                } else {
+                    stockInfo.className = 'stock-info text-success';
+                }
+            }
+            
+            recalcItemsData();
+            updateTransferStatus();
+        });
+        
+        // Quantity change handler
+        quantityInput.addEventListener('input', () => {
+            validateStock(quantityInput);
+        });
+        
+        // Increment button handler
+        incrementBtn.addEventListener('click', function() {
+            quantityInput.stepUp();
+            validateStock(quantityInput);
+        });
+        
+        // Decrement button handler
+        decrementBtn.addEventListener('click', function() {
+            if (parseInt(quantityInput.value) > 1) {
+                quantityInput.stepDown();
+                validateStock(quantityInput);
+            }
+        });
+        
+        // Remove row handler
+        removeBtn.addEventListener('click', function() {
+            if (document.querySelectorAll('.product-row').length > 1) {
+                row.remove();
+            } else {
+                // Clear the row if it's the last one
+                productSelect.value = '';
+                $(productSelect).trigger('change');
+                quantityInput.value = '1';
+                stockInfo.textContent = 'Select From Location';
+                stockInfo.className = 'stock-info text-muted';
+            }
+            recalcItemsData();
+            updateAllStockInfo();
+            updateEmptyState();
+        });
+    }
+
+    // Serialize products data to hidden field
+    function recalcItemsData() {
+        const items = [];
+        document.querySelectorAll('.product-row').forEach(row => {
+            const productSelect = row.querySelector('.product-select');
+            const productId = productSelect.value;
+            
+            if (productId) {
+                const quantity = parseFloat(row.querySelector('.quantity').value) || 0;
+                
+                items.push({
+                    product_id: parseInt(productId),
+                    quantity: quantity
+                });
+            }
+        });
+        
+        itemsData.value = JSON.stringify(items);
+        console.log('Transfer items data updated:', items);
+        updateTransferStatus();
+    }
+
+    // Add product row
+    if (addProductBtn) {
+        addProductBtn.addEventListener('click', function() {
+            if (!currentFromLocationId) {
+                alert('Please select a "From Location" first to check stock availability');
+                if (fromLocationSelect) fromLocationSelect.focus();
+                return;
+            }
+
+            const newRow = createProductRow();
+            productsTableBody.appendChild(newRow);
+            setupRowEvents(newRow);
+            recalcItemsData();
+            updateEmptyState();
+            
+            // Focus on the new product select
+            setTimeout(() => {
+                $(newRow.querySelector('.product-select')).select2('open');
+            }, 100);
+        });
+    }
+
+    // Form validation
+    if (transferForm) {
+        transferForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            recalcItemsData();
+            const items = JSON.parse(itemsData.value || '[]');
+            
+            // Validate locations are selected
+            const fromLocation = fromLocationSelect.value;
+            const toLocation = toLocationSelect.value;
+            
+            if (!fromLocation || !toLocation) {
+                alert('Please select both source and destination locations');
+                if (!fromLocation) fromLocationSelect.focus();
+                else toLocationSelect.focus();
+                return false;
+            }
+            
+            // Validate locations are different
+            if (fromLocation === toLocation) {
+                alert('Source and destination locations cannot be the same');
+                fromLocationSelect.focus();
+                return false;
+            }
+            
+            // Validate at least one product
+            if (items.length === 0) {
+                alert('Please add at least one product to transfer');
+                addProductBtn.focus();
+                return false;
+            }
+            
+            // Validate stock for all products
+            let stockIssues = [];
+            let hasStockProblems = false;
+            
+            for (const item of items) {
+                const stock = await getProductStock(item.product_id);
+                if (item.quantity > stock) {
+                    // Get product name for better error message
+                    const productSelect = document.querySelector(`[value="${item.product_id}"]`);
+                    const productName = productSelect ? productSelect.textContent.split('(')[0].trim() : `Product ${item.product_id}`;
+                    stockIssues.push(`${productName}: Requested ${item.quantity}, Available ${stock}`);
+                    hasStockProblems = true;
+                }
+            }
+            
+            // Validate all rows have valid data
+            let hasErrors = false;
+            let errorMessages = [];
+            
+            document.querySelectorAll('.product-row').forEach((row, index) => {
+                const productSelect = row.querySelector('.product-select');
+                const quantity = row.querySelector('.quantity').value;
+                
+                if (!productSelect.value) {
+                    hasErrors = true;
+                    row.style.backgroundColor = '#450a0a';
+                    errorMessages.push(`Row ${index + 1}: Please select a product`);
+                } else if (!quantity || quantity <= 0) {
+                    hasErrors = true;
+                    row.style.backgroundColor = '#450a0a';
+                    errorMessages.push(`Row ${index + 1}: Please enter a valid quantity`);
+                } else {
+                    row.style.backgroundColor = '';
+                }
+            });
+            
+            if (hasErrors) {
+                alert('Please fix the following errors:\n\n' + errorMessages.join('\n'));
+                return false;
+            }
+            
+            // Handle stock problems
+            if (hasStockProblems) {
+                const message = "Stock issues detected:\n" + stockIssues.join('\n') + "\n\nDo you want to continue anyway?";
+                if (!confirm(message)) {
+                    return false;
+                }
+            }
+            
+            // Confirm large transfers
+            const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+            if (totalQuantity > 1000) {
+                if (!confirm(`This transfer involves ${formatNumber(totalQuantity)} units. Are you sure you want to proceed?`)) {
+                    return false;
+                }
+            }
+            
+            console.log('Transfer form submitted successfully');
+            // If we get here, submit the form
+            this.submit();
+            return true;
+        });
+    }
+
+    // Reset form
+    const resetButton = document.getElementById('resetButton');
+    if (resetButton) {
+        resetButton.addEventListener('click', function() {
+            if (confirm('Are you sure you want to reset the form? All entered data will be lost.')) {
+                productsTableBody.innerHTML = '';
+                transferForm.reset();
+                document.querySelector('[name="transfer_date"]').value = '{{ default_date }}';
+                itemsData.value = '[]';
+                currentFromLocationId = null;
+                updateTransferStatus();
+                hideStockWarning();
+                updateEmptyState();
+                
+                // Reset Select2 dropdowns
+                $('.select2').val('').trigger('change');
+                
+                // Reset add product button
+                if (addProductBtn) {
+                    addProductBtn.disabled = true;
+                    addProductBtn.innerHTML = '<i class="fas fa-plus me-1"></i>Add Product (Select From Location First)';
+                    addProductBtn.className = 'btn btn-secondary';
+                }
+                
+                // Add initial row
+                setTimeout(() => {
+                    if (productsTableBody.children.length === 0) {
+                        addProductBtn.click();
+                    }
+                }, 100);
+            }
+        });
+    }
+
+    // Update transfer status when locations change
+    if (fromLocationSelect) {
+        fromLocationSelect.addEventListener('change', updateTransferStatus);
+    }
+    if (toLocationSelect) {
+        toLocationSelect.addEventListener('change', updateTransferStatus);
+    }
+
+    // Initialize Select2 for dropdowns if locations are available
+    if (locationsAvailable) {
+        $('#id_from_location').select2({
+            placeholder: "Select source location...",
+            allowClear: false,
+            width: '100%'
+        }).on('change', updateAllStockInfo);
+        
+        $('#id_to_location').select2({
+            placeholder: "Select destination location...",
+            allowClear: false,
+            width: '100%'
+        });
+
+        // Add initial row on page load
+        setTimeout(() => {
+            if (productsTableBody.children.length === 0) {
+                addProductBtn.click();
+            }
+            updateTransferStatus();
+            updateEmptyState();
+        }, 100);
+    }
+});
+</script>
+
+<style>
+:root {
+    --bg: #071029;
+    --card: #0e1622;
+    --muted: #9fb0c8;
+    --accent: #4f46e5;
+    --accent2: #06b6d4;
+    --positive: #10b981;
+    --negative: #ef4444;
+}
+
+body {
+    background: var(--bg);
+    color: var(--muted);
+    font-family: Inter, system-ui, Roboto;
+}
+
+.card {
+    background: var(--card);
+    color: var(--muted);
+    border-radius: 8px;
+    border: 1px solid #1e293b;
+}
+
+.form-control, .form-select {
+    background: var(--card);
+    border: 1px solid #374151;
+    color: var(--muted);
+}
+
+.form-control:focus, .form-select:focus {
+    background: var(--card);
+    border-color: var(--accent);
+    color: var(--muted);
+    box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.25);
+}
+
+.form-control.is-invalid {
+    border-color: var(--negative);
+    box-shadow: 0 0 0 0.2rem rgba(239, 68, 68, 0.25);
+}
+
+.form-label {
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.input-group-text {
+    background: #1e293b;
+    border: 1px solid #374151;
+    color: var(--muted);
+}
+
+.table {
+    color: var(--muted);
+    border-color: #374151;
+}
+
+.table-bordered th,
+.table-bordered td {
+    border-color: #374151;
+}
+
+.table-light {
+    background: #1e293b;
+    color: var(--muted);
+}
+
+.btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.btn-primary:hover {
+    background: #4338ca;
+    border-color: #4338ca;
+}
+
+.btn-success {
+    background: var(--positive);
+    border-color: var(--positive);
+}
+
+.btn-success:hover {
+    background: #0da271;
+    border-color: #0da271;
+}
+
+.btn-danger {
+    background: var(--negative);
+    border-color: var(--negative);
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+}
+
+.btn-secondary {
+    background: #6b7280;
+    border-color: #6b7280;
+}
+
+.select2-container--default .select2-selection--single {
+    background: var(--card);
+    border: 1px solid #374151;
+    color: var(--muted);
+    height: 38px;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    color: var(--muted);
+    line-height: 36px;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 36px;
+}
+
+.select2-container--default .select2-results__option {
+    background: var(--card);
+    color: var(--muted);
+}
+
+.select2-container--default .select2-results__option--highlighted[aria-selected] {
+    background: var(--accent);
+    color: white;
+}
+
+.select2-container--default .select2-dropdown {
+    background: var(--card);
+    border: 1px solid #374151;
+}
+
+.text-white { color: white !important; }
+.text-success { color: var(--positive) !important; }
+.text-danger { color: var(--negative) !important; }
+.text-warning { color: #f59e0b !important; }
+.text-muted { color: var(--muted) !important; }
+.text-info { color: #06b6d4 !important; }
+
+.alert {
+    background: var(--card);
+    border: 1px solid #374151;
+    color: var(--muted);
+}
+
+.alert-warning {
+    border-color: #f59e0b;
+    background: #451a03;
+}
+
+.alert-success {
+    border-color: var(--positive);
+}
+
+.alert-danger {
+    border-color: var(--negative);
+}
+
+.table-hover tbody tr:hover {
+    background-color: #1e293b;
+    color: var(--muted);
+}
+
+/* Ensure Select2 dropdown appears above other elements */
+.select2-container {
+    z-index: 1055;
+}
+
+.select2-dropdown {
+    z-index: 1056;
+}
+
+/* Status styles */
+.bg-success { background-color: var(--positive) !important; }
+.bg-warning { background-color: #f59e0b !important; }
+.bg-danger { background-color: var(--negative) !important; }
+.bg-secondary { background-color: #6b7280 !important; }
+.bg-info { background-color: #06b6d4 !important; }
+
+.fw-bold { font-weight: bold !important; }
+
+/* Stock status colors */
+.stock-info.text-success { color: var(--positive) !important; }
+.stock-info.text-warning { color: #f59e0b !important; }
+.stock-info.text-danger { color: var(--negative) !important; }
+.stock-info.text-muted { color: var(--muted) !important; }
+
+/* Input group buttons */
+.input-group .btn {
+    border-radius: 0 6px 6px 0;
+}
+
+.input-group .btn:first-child {
+    border-radius: 6px 0 0 6px;
+}
+
+/* Empty state */
+#emptyState {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border: 2px dashed #374151;
+}
+
+.fw-semibold {
+    font-weight: 600;
+}
+</style>
+{% endblock %}

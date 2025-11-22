@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-white">{{ title }}</h2>
+        <a href="{% url 'transactions:customer_detail' customer.id %}" class="btn btn-outline-secondary">
+            ← Back to Customer
+        </a>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h5 class="text-white">Customer Information</h5>
+                    <p class="text-muted mb-1"><strong>Name:</strong> {{ customer.name }}</p>
+                    <p class="text-muted mb-1"><strong>Current Balance:</strong> ${{ customer.balance|floatformat:2 }}</p>
+                    <p class="text-muted"><strong>Phone:</strong> {{ customer.phone|default:"Not provided" }}</p>
+                </div>
+            </div>
+
+            <form method="POST">
+                {% csrf_token %}
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Amount *</label>
+                            {{ form.amount }}
+                            {% if form.amount.errors %}
+                                <div class="text-danger">{{ form.amount.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Reference</label>
+                            {{ form.reference }}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            {{ form.notes }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    {% if adjustment_type == 'credit' %}
+                        This will add credit to the customer's account. The customer can use this balance for future purchases.
+                    {% else %}
+                        This will deduct from the customer's available balance. Please ensure the customer has sufficient funds.
+                    {% endif %}
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check"></i> Confirm {{ title }}
+                    </button>
+                    <a href="{% url 'transactions:customer_detail' customer.id %}" class="btn btn-outline-danger">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

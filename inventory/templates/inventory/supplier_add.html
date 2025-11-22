@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Add Supplier - Inventory Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Add Supplier</h1>
+        <a href="{% url 'inventory:supplier_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left fa-sm"></i> Back to Suppliers
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Supplier Information</h6>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="form-group">
+                            <label for="name">Supplier Name *</label>
+                            <input type="text" class="form-control" id="name" name="name" 
+                                   required maxlength="200" placeholder="Enter supplier name">
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="contact_person">Contact Person</label>
+                                    <input type="text" class="form-control" id="contact_person" name="contact_person" 
+                                           maxlength="100" placeholder="Contact person name">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="phone">Phone</label>
+                                    <input type="text" class="form-control" id="phone" name="phone" 
+                                           maxlength="20" placeholder="Phone number">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   placeholder="Email address">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="address">Address</label>
+                            <textarea class="form-control" id="address" name="address" 
+                                      rows="3" placeholder="Supplier address"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Save Supplier
+                            </button>
+                            <a href="{% url 'inventory:supplier_list' %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

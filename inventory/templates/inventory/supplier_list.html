@@ -1,0 +1,264 @@
+{% extends 'base.html' %}
+
+{% block title %}Suppliers - Teba Inventory{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-truck me-2"></i>Suppliers
+                </h5>
+                <a href="{% url 'inventory:supplier_add' %}" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>Add Supplier
+                </a>
+            </div>
+            <div class="card-body">
+                {% if supplier_data %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Contact Person</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Purchases</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in supplier_data %}
+                            {% with supplier=item.supplier purchase_count=item.purchase_count %}
+                            <tr>
+                                <td>
+                                    <strong>{{ supplier.name }}</strong>
+                                </td>
+                                <td>
+                                    {% if supplier.contact_person %}
+                                        {{ supplier.contact_person }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if supplier.email %}
+                                        <a href="mailto:{{ supplier.email }}">{{ supplier.email }}</a>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if supplier.phone %}
+                                        {{ supplier.phone }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ purchase_count }}</span>
+                                </td>
+                                <td>
+                                    <div class="btn-group">
+                                        <a href="{% url 'inventory:supplier_edit' supplier.id %}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-danger" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#deleteSupplierModal{{ supplier.id }}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endwith %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-truck fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No Suppliers Found</h5>
+                    <p class="text-muted">Get started by adding your first supplier.</p>
+                    <a href="{% url 'inventory:supplier_add' %}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>Add First Supplier
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Move ALL modals outside the table to prevent dancing -->
+{% if supplier_data %}
+{% for item in supplier_data %}
+{% with supplier=item.supplier purchase_count=item.purchase_count %}
+<!-- Delete Confirmation Modal - Outside table -->
+<div class="modal fade" id="deleteSupplierModal{{ supplier.id }}" tabindex="-1" 
+     data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Confirm Supplier Deletion
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <h6 class="alert-heading">Warning: This action cannot be undone!</h6>
+                    <p class="mb-0">You are about to permanently delete:</p>
+                </div>
+                
+                <div class="card border-0 bg-light">
+                    <div class="card-body">
+                        <h6 class="fw-bold text-danger">{{ supplier.name }}</h6>
+                        {% if supplier.contact_person %}
+                        <p class="mb-1"><strong>Contact:</strong> {{ supplier.contact_person }}</p>
+                        {% endif %}
+                        {% if supplier.email %}
+                        <p class="mb-1"><strong>Email:</strong> {{ supplier.email }}</p>
+                        {% endif %}
+                        {% if supplier.phone %}
+                        <p class="mb-0"><strong>Phone:</strong> {{ supplier.phone }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if purchase_count > 0 %}
+                <div class="alert alert-warning mt-3">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Note:</strong> This supplier has {{ purchase_count }} purchase record(s).
+                </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>Cancel
+                </button>
+                <form method="post" action="{% url 'inventory:supplier_delete' supplier.id %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-1"></i>Delete Supplier
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endwith %}
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Fix for modal dancing and jumping */
+.modal {
+    overflow: hidden !important;
+}
+
+.modal-dialog {
+    margin: 0 auto !important;
+    transform: none !important;
+}
+
+.modal-content {
+    border: 2px solid #dc3545;
+    border-radius: 0.5rem;
+}
+
+/* Remove any animations that cause dancing */
+.modal.fade .modal-dialog {
+    transform: none !important;
+    transition: none !important;
+}
+
+/* Ensure stable positioning */
+.btn-group {
+    position: relative;
+    z-index: 1;
+}
+
+/* Prevent table row height changes */
+.table tbody tr {
+    height: 60px;
+}
+
+/* Fix for any Bootstrap animations */
+.fade {
+    transition: none !important;
+}
+
+/* Ensure modal backdrop is stable */
+.modal-backdrop {
+    transition: none !important;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Fix for modal dancing - disable Bootstrap animations
+document.addEventListener('DOMContentLoaded', function() {
+    // Override Bootstrap modal show/hide methods to remove animations
+    const originalModal = bootstrap.Modal.prototype.constructor;
+    
+    // Disable all transitions
+    const style = document.createElement('style');
+    style.textContent = `
+        .modal.fade .modal-dialog {
+            transition: none !important;
+            transform: none !important;
+        }
+        .modal-backdrop.fade {
+            transition: none !important;
+        }
+        .fade {
+            transition: none !important;
+        }
+        * {
+            transition: none !important;
+            animation: none !important;
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Initialize modals without animations
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        // Remove fade class to eliminate animations
+        modal.classList.remove('fade');
+        
+        const modalInstance = new bootstrap.Modal(modal, {
+            backdrop: 'static',
+            keyboard: false
+        });
+        
+        // Prevent any focus changes that might cause jumping
+        modal.addEventListener('show.bs.modal', function (e) {
+            e.preventDefault();
+            document.body.style.overflow = 'hidden';
+        });
+        
+        modal.addEventListener('hide.bs.modal', function (e) {
+            e.preventDefault();
+            document.body.style.overflow = 'auto';
+        });
+    });
+
+    // Prevent any click animations on buttons
+    document.querySelectorAll('.btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    });
+});
+</script>
+{% endblock %}

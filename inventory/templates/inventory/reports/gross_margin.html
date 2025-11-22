@@ -1,0 +1,407 @@
+<!-- templates/inventory/reports/gross_margin.html -->
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Gross Margin Analysis - Teba Inventory{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="{% url 'inventory:reports_dashboard' %}">Reports</a></li>
+<li class="breadcrumb-item active">Gross Margin Analysis</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-percentage me-2"></i>Gross Margin Analysis
+                </h5>
+                <div class="no-print">
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="printReport()">
+                        <i class="fas fa-print me-1"></i>Print
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="exportReport('csv')">
+                        <i class="fas fa-download me-1"></i>Export CSV
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Filters -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <form method="get" class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Date From</label>
+                                <input type="date" name="date_from" value="{{ date_from }}" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Date To</label>
+                                <input type="date" name="date_to" value="{{ date_to }}" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Group By</label>
+                                <select name="group_by" class="form-select">
+                                    {% for value, label in group_options %}
+                                    <option value="{{ value }}" {% if group_by == value %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Margin Range</label>
+                                <select name="margin_range" class="form-select">
+                                    {% for value, label in margin_ranges %}
+                                    <option value="{{ value }}" {% if margin_range == value %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-12 mt-3">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-filter me-1"></i>Apply Filters
+                                </button>
+                                <a href="{% url 'inventory:gross_margin_report' %}" class="btn btn-outline-secondary ms-2">
+                                    <i class="fas fa-redo me-1"></i>Reset
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="row mb-4">
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-primary h-100">
+                            <div class="card-body text-center">
+                                <div class="metric-value text-primary">{{ summary_stats.total_margin|floatformat:1 }}%</div>
+                                <div class="metric-label">Overall Margin</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-success h-100">
+                            <div class="card-body text-center">
+                                <div class="metric-value text-success">UGX {{ summary_stats.total_profit|floatformat:0|intcomma }}</div>
+                                <div class="metric-label">Total Profit</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-info h-100">
+                            <div class="card-body text-center">
+                                <div class="metric-value text-info">UGX {{ summary_stats.total_revenue|floatformat:0|intcomma }}</div>
+                                <div class="metric-label">Total Revenue</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-warning h-100">
+                            <div class="card-body text-center">
+                                <div class="metric-value text-warning">{{ high_margin_items }}</div>
+                                <div class="metric-label">High Margin</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-danger h-100">
+                            <div class="card-body text-center">
+                                <div class="metric-value text-danger">{{ negative_margin_items }}</div>
+                                <div class="metric-label">Negative Margin</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-secondary h-100">
+                            <div class="card-body text-center">
+                                <div class="metric-value">{{ margin_data|length }}</div>
+                                <div class="metric-label">Total Groups</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Margin Distribution -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Margin Performance Overview</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-md-3">
+                                        <div class="metric-card">
+                                            <div class="metric-value text-success">{{ high_margin_items }}</div>
+                                            <div class="metric-label">High Margin (>30%)</div>
+                                            <small class="text-muted">Excellent performance</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="metric-card">
+                                            <div class="metric-value text-info">{{ medium_margin_items }}</div>
+                                            <div class="metric-label">Medium (15-30%)</div>
+                                            <small class="text-muted">Good performance</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="metric-card">
+                                            <div class="metric-value text-warning">{{ low_margin_items }}</div>
+                                            <div class="metric-label">Low (0-15%)</div>
+                                            <small class="text-muted">Needs improvement</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="metric-card">
+                                            <div class="metric-value text-danger">{{ negative_margin_items }}</div>
+                                            <div class="metric-label">Negative</div>
+                                            <small class="text-muted">Critical review needed</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Margin Analysis Chart -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Margin Analysis by {{ group_by|title }}</h6>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="marginChart" height="100"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Margin Details Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">Margin Analysis Details</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>{{ group_by|title }}</th>
+                                        <th class="text-end">Revenue</th>
+                                        <th class="text-end">Cost</th>
+                                        <th class="text-end">Profit</th>
+                                        <th class="text-end">Margin %</th>
+                                        <th>Performance</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in margin_data %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ item.group }}</strong>
+                                            {% if item.type == 'category' %}
+                                            <br><small class="text-muted">{{ item.item_count }} products</small>
+                                            {% elif item.type == 'customer' %}
+                                            <br><small class="text-muted">{{ item.order_count }} orders</small>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">UGX {{ item.revenue|floatformat:0|intcomma }}</td>
+                                        <td class="text-end">UGX {{ item.cost|floatformat:0|intcomma }}</td>
+                                        <td class="text-end">
+                                            <strong class="{% if item.profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                                UGX {{ item.profit|floatformat:0|intcomma }}
+                                            </strong>
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="badge 
+                                                {% if item.margin > 30 %}badge-positive
+                                                {% elif item.margin > 15 %}badge bg-info
+                                                {% elif item.margin >= 0 %}badge bg-warning
+                                                {% else %}badge-negative{% endif %}">
+                                                {{ item.margin|floatformat:1 }}%
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if item.margin > 30 %}
+                                            <span class="text-success">
+                                                <i class="fas fa-star me-1"></i>Excellent
+                                            </span>
+                                            {% elif item.margin > 15 %}
+                                            <span class="text-info">
+                                                <i class="fas fa-thumbs-up me-1"></i>Good
+                                            </span>
+                                            {% elif item.margin >= 0 %}
+                                            <span class="text-warning">
+                                                <i class="fas fa-exclamation-triangle me-1"></i>Needs Review
+                                            </span>
+                                            {% else %}
+                                            <span class="text-danger">
+                                                <i class="fas fa-times-circle me-1"></i>Critical
+                                            </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if item.type == 'category' %}
+                                            <a href="{% url 'inventory:product_profitability_report' %}?category={{ item.group|urlencode }}&date_from={{ date_from }}&date_to={{ date_to }}" 
+                                               class="btn btn-sm btn-outline-primary">
+                                                View Products
+                                            </a>
+                                            {% elif item.type == 'customer' %}
+                                            <small class="text-muted">Customer Analysis</small>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted py-4">
+                                            <i class="fas fa-search fa-2x mb-3"></i><br>
+                                            No data found matching your criteria.
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot>
+                                    <tr class="table-active">
+                                        <td><strong>Totals</strong></td>
+                                        <td class="text-end"><strong>UGX {{ summary_stats.total_revenue|floatformat:0|intcomma }}</strong></td>
+                                        <td class="text-end"><strong>UGX {{ summary_stats.total_cost|floatformat:0|intcomma }}</strong></td>
+                                        <td class="text-end"><strong>UGX {{ summary_stats.total_profit|floatformat:0|intcomma }}</strong></td>
+                                        <td class="text-end"><strong>{{ summary_stats.total_margin|floatformat:1 }}%</strong></td>
+                                        <td colspan="2"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function exportReport(format) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('format', format);
+    window.location.href = url.toString();
+}
+
+// Margin Analysis Chart
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('marginChart').getContext('2d');
+    
+    // Prepare chart data
+    const labels = {{ margin_data|slice:":10"|map:'group'|safe }};
+    const margins = {{ margin_data|slice:":10"|map:'margin'|safe }};
+    const revenues = {{ margin_data|slice:":10"|map:'revenue'|safe }};
+    
+    const marginChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Margin %',
+                    data: margins,
+                    type: 'line',
+                    yAxisID: 'y',
+                    borderColor: '#10b981',
+                    backgroundColor: 'transparent',
+                    borderWidth: 3,
+                    tension: 0.4
+                },
+                {
+                    label: 'Revenue (UGX)',
+                    data: revenues,
+                    yAxisID: 'y1',
+                    backgroundColor: 'rgba(79, 70, 229, 0.7)',
+                    borderColor: 'rgba(79, 70, 229, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        color: 'var(--muted)'
+                    },
+                    grid: {
+                        color: 'var(--border)'
+                    }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Margin %',
+                        color: 'var(--muted)'
+                    },
+                    ticks: {
+                        color: 'var(--muted)',
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    },
+                    grid: {
+                        color: 'var(--border)'
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Revenue (UGX)',
+                        color: 'var(--muted)'
+                    },
+                    ticks: {
+                        color: 'var(--muted)',
+                        callback: function(value) {
+                            return 'UGX ' + (value / 1000).toFixed(0) + 'K';
+                        }
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                    },
+                }
+            },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: 'var(--muted)'
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label.includes('Revenue')) {
+                                return label + ': UGX ' + context.parsed.y.toLocaleString();
+                            } else {
+                                return label + ': ' + context.parsed.y.toFixed(1) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,52 @@
+<!-- Progress Stats -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3>{{ total_items }}</h3>
+                <p class="text-muted">Total Items</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-success">{{ counted_items }}</h3>
+                <p class="text-muted">Counted</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-warning">{{ uncounted_items }}</h3>
+                <p class="text-muted">Uncounted</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3>{{ completion_percentage|floatformat:1 }}%</h3>
+                <p class="text-muted">Complete</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="mb-4">
+    <form method="post" class="d-inline">
+        {% csrf_token %}
+        <button type="submit" name="set_uncounted_to_zero" class="btn btn-warning">
+            <i class="fas fa-exclamation-triangle"></i> Set Uncounted Items to Zero
+        </button>
+        <small class="text-muted ms-2">This will set all uncounted items to quantity 0</small>
+    </form>
+    
+    <div class="mt-2">
+        <button type="submit" name="save_draft" class="btn btn-secondary">Save Draft</button>
+        <button type="submit" name="mark_in_progress" class="btn btn-info">Mark In Progress</button>
+        <button type="submit" name="complete" class="btn btn-success">Complete Stocktake</button>
+    </div>
+</div>

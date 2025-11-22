@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card p-3">
+  <h2>Reports Center</h2>
+  <ul>
+    <li><a href="{% url 'transactions:customer_report' %}">Customer Reports</a></li>
+    <li><a href="{% url 'transactions:expense_report' %}">Expense Reports</a></li>
+    <li><a href="{% url 'transactions:transaction_report' %}">Transaction Reports</a></li>
+  </ul>
+</div>
+{% endblock %}

@@ -1,0 +1,417 @@
+<!-- templates/inventory/reports/supplier_scorecard.html -->
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Supplier Scorecard - Teba Inventory{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="{% url 'inventory:reports_dashboard' %}">Reports</a></li>
+<li class="breadcrumb-item active">Supplier Scorecard</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-clipboard-check me-2"></i>Supplier Performance Scorecard
+                </h5>
+                <div class="no-print">
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="printReport()">
+                        <i class="fas fa-print me-1"></i>Print
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="exportReport('csv')">
+                        <i class="fas fa-download me-1"></i>Export CSV
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Filters -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <form method="get" class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Date From</label>
+                                <input type="date" name="date_from" value="{{ date_from }}" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Date To</label>
+                                <input type="date" name="date_to" value="{{ date_to }}" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Min Orders</label>
+                                <input type="number" name="min_orders" value="{{ min_orders }}" class="form-control" min="1">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Analysis Period</label>
+                                <div class="form-text">
+                                    {{ total_suppliers }} suppliers analyzed
+                                </div>
+                            </div>
+                            <div class="col-md-12 mt-3">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-filter me-1"></i>Apply Filters
+                                </button>
+                                <a href="{% url 'inventory:supplier_scorecard_report' %}" class="btn btn-outline-secondary ms-2">
+                                    <i class="fas fa-redo me-1"></i>Reset
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Performance Summary -->
+                <div class="row mb-4">
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-success h-100">
+                            <div class="card-body text-center">
+                                <div class="metric-value text-success">{{ excellent_count }}</div>
+                                <div class="metric-label">Excellent</div>
+                                <small class="text-muted">≥90% score</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-info h-100">
+                            <div class="card-body text-center">
+                                <div class="metric-value text-info">{{ good_count }}</div>
+                                <div class="metric-label">Good</div>
+                                <small class="text-muted">75-89%</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-warning h-100">
+                            <div class="card-body text-center">
+                                <div class="metric-value text-warning">{{ fair_count }}</div>
+                                <div class="metric-label">Fair</div>
+                                <small class="text-muted">60-74%</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-danger h-100">
+                            <div class="card-body text-center">
+                                <div class="metric-value text-danger">{{ poor_count }}</div>
+                                <div class="metric-label">Poor</div>
+                                <small class="text-muted"><60%</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-primary h-100">
+                            <div class="card-body text-center">
+                                <div class="metric-value text-primary">{{ avg_supplier_score|floatformat:1 }}%</div>
+                                <div class="metric-label">Avg Score</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 mb-4">
+                        <div class="card border-left-secondary h-100">
+                            <div class="card-body text-center">
+                                <div class="metric-value">UGX {{ total_spending|floatformat:0|intcomma }}</div>
+                                <div class="metric-label">Total Spending</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Distribution -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Supplier Performance Distribution</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-md-3">
+                                        <div class="metric-card">
+                                            <div class="metric-value text-success">{{ excellent_count }}</div>
+                                            <div class="metric-label">Strategic Partners</div>
+                                            <small class="text-muted">High priority</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="metric-card">
+                                            <div class="metric-value text-info">{{ good_count }}</div>
+                                            <div class="metric-label">Preferred Suppliers</div>
+                                            <small class="text-muted">Reliable</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="metric-card">
+                                            <div class="metric-value text-warning">{{ fair_count }}</div>
+                                            <div class="metric-label">Standard Suppliers</div>
+                                            <small class="text-muted">Needs monitoring</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="metric-card">
+                                            <div class="metric-value text-danger">{{ poor_count }}</div>
+                                            <div class="metric-label">High Risk</div>
+                                            <small class="text-muted">Review needed</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Supplier Scorecard Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">Supplier Performance Details</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Supplier</th>
+                                        <th class="text-end">Total Spent</th>
+                                        <th class="text-end">Orders</th>
+                                        <th class="text-end">Avg Order Value</th>
+                                        <th class="text-end">Unique Items</th>
+                                        <th class="text-end">Price Stability</th>
+                                        <th class="text-end">Product Range</th>
+                                        <th class="text-end">Order Frequency</th>
+                                        <th class="text-end">Spending Level</th>
+                                        <th class="text-end">Overall Score</th>
+                                        <th>Rating</th>
+                                        <th>Last Order</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for supplier in scorecard_data %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ supplier.supplier_name }}</strong>
+                                            {% if supplier.locations %}
+                                            <br><small class="text-muted">{{ supplier.locations|join:", " }}</small>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">UGX {{ supplier.total_spent|floatformat:0|intcomma }}</td>
+                                        <td class="text-end">{{ supplier.order_count }}</td>
+                                        <td class="text-end">UGX {{ supplier.avg_order_value|floatformat:0|intcomma }}</td>
+                                        <td class="text-end">{{ supplier.total_items }}</td>
+                                        <td class="text-end">
+                                            <span class="badge 
+                                                {% if supplier.metrics.price_stability >= 90 %}badge-positive
+                                                {% elif supplier.metrics.price_stability >= 75 %}badge bg-info
+                                                {% elif supplier.metrics.price_stability >= 60 %}badge bg-warning
+                                                {% else %}badge-negative{% endif %}">
+                                                {{ supplier.metrics.price_stability|floatformat:0 }}%
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="badge 
+                                                {% if supplier.metrics.product_range >= 90 %}badge-positive
+                                                {% elif supplier.metrics.product_range >= 75 %}badge bg-info
+                                                {% elif supplier.metrics.product_range >= 60 %}badge bg-warning
+                                                {% else %}badge-negative{% endif %}">
+                                                {{ supplier.metrics.product_range|floatformat:0 }}%
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="badge 
+                                                {% if supplier.metrics.order_frequency >= 90 %}badge-positive
+                                                {% elif supplier.metrics.order_frequency >= 75 %}badge bg-info
+                                                {% elif supplier.metrics.order_frequency >= 60 %}badge bg-warning
+                                                {% else %}badge-negative{% endif %}">
+                                                {{ supplier.metrics.order_frequency|floatformat:0 }}%
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="badge 
+                                                {% if supplier.metrics.spending_level >= 90 %}badge-positive
+                                                {% elif supplier.metrics.spending_level >= 75 %}badge bg-info
+                                                {% elif supplier.metrics.spending_level >= 60 %}badge bg-warning
+                                                {% else %}badge-negative{% endif %}">
+                                                {{ supplier.metrics.spending_level|floatformat:0 }}%
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="badge 
+                                                {% if supplier.rating == 'Excellent' %}badge-positive
+                                                {% elif supplier.rating == 'Good' %}badge bg-info
+                                                {% elif supplier.rating == 'Fair' %}badge bg-warning
+                                                {% else %}badge-negative{% endif %}">
+                                                {{ supplier.overall_score|floatformat:1 }}%
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-{{ supplier.rating_class }}">
+                                                {{ supplier.rating }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if supplier.last_order_date %}
+                                                {{ supplier.last_order_date|date:"M d, Y" }}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="12" class="text-center text-muted py-4">
+                                            <i class="fas fa-search fa-2x mb-3"></i><br>
+                                            No supplier data found matching your criteria.
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot>
+                                    <tr class="table-active">
+                                        <td><strong>Summary</strong></td>
+                                        <td class="text-end"><strong>UGX {{ total_spending|floatformat:0|intcomma }}</strong></td>
+                                        <td class="text-end"><strong>{{ scorecard_data|length }} suppliers</strong></td>
+                                        <td colspan="8"></td>
+                                        <td class="text-end"><strong>{{ avg_supplier_score|floatformat:1 }}%</strong></td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Charts -->
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Supplier Rating Distribution</h6>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="ratingChart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Spending by Performance Tier</h6>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="spendingChart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function exportReport(format) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('format', format);
+    window.location.href = url.toString();
+}
+
+// Performance Charts
+document.addEventListener('DOMContentLoaded', function() {
+    // Rating Distribution Chart
+    const ratingCtx = document.getElementById('ratingChart').getContext('2d');
+    const ratingChart = new Chart(ratingCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Excellent', 'Good', 'Fair', 'Poor'],
+            datasets: [{
+                data: [{{ excellent_count }}, {{ good_count }}, {{ fair_count }}, {{ poor_count }}],
+                backgroundColor: [
+                    '#10b981', // success
+                    '#3b82f6', // info  
+                    '#f59e0b', // warning
+                    '#ef4444'  // danger
+                ],
+                borderWidth: 2,
+                borderColor: 'var(--card)'
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: 'var(--muted)',
+                        padding: 20
+                    }
+                }
+            }
+        }
+    });
+
+    // Spending by Tier Chart
+    const spendingCtx = document.getElementById('spendingChart').getContext('2d');
+    
+    // Calculate spending by tier
+    const excellentSpending = {{ scorecard_data|filter_attr:'rating'|equal:'Excellent'|map:'total_spent'|sum|default:0 }};
+    const goodSpending = {{ scorecard_data|filter_attr:'rating'|equal:'Good'|map:'total_spent'|sum|default:0 }};
+    const fairSpending = {{ scorecard_data|filter_attr:'rating'|equal:'Fair'|map:'total_spent'|sum|default:0 }};
+    const poorSpending = {{ scorecard_data|filter_attr:'rating'|equal:'Poor'|map:'total_spent'|sum|default:0 }};
+    
+    const spendingChart = new Chart(spendingCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Excellent', 'Good', 'Fair', 'Poor'],
+            datasets: [{
+                label: 'Spending (UGX)',
+                data: [excellentSpending, goodSpending, fairSpending, poorSpending],
+                backgroundColor: [
+                    '#10b981', // success
+                    '#3b82f6', // info  
+                    '#f59e0b', // warning
+                    '#ef4444'  // danger
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return 'UGX ' + context.parsed.y.toLocaleString();
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        color: 'var(--muted)'
+                    },
+                    grid: {
+                        color: 'var(--border)'
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: 'var(--muted)',
+                        callback: function(value) {
+                            return 'UGX ' + (value / 1000).toFixed(0) + 'K';
+                        }
+                    },
+                    grid: {
+                        color: 'var(--border)'
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}ABC Analysis Report - Teba Inventory{% endblock %}
+
+{% block breadcrumb_items %}
+    <li class="breadcrumb-item"><a href="{% url 'inventory:reports_dashboard' %}">Reports</a></li>
+    <li class="breadcrumb-item active">ABC Analysis</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="card-title mb-0">
+                    <i class="fas fa-sort-alpha-down me-2"></i>ABC Analysis Report
+                </h4>
+            </div>
+            <div class="card-body">
+                <!-- Filters -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <form method="get" class="row g-3">
+                            <div class="col-md-4">
+                                <label for="basis" class="form-label">Classification Basis</label>
+                                <select name="basis" id="basis" class="form-select">
+                                    {% for value, label in basis_options %}
+                                        <option value="{{ value }}" {% if classification_basis == value %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check mt-4">
+                                    <input class="form-check-input" type="checkbox" name="include_zero" id="include_zero" 
+                                           {% if include_zero_stock %}checked{% endif %}>
+                                    <label class="form-check-label" for="include_zero">
+                                        Include Zero Stock Items
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="d-grid gap-2 mt-4">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-filter me-1"></i>Apply Filters
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Summary Statistics -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card text-center border-left-primary">
+                            <div class="card-body">
+                                <h3 class="text-primary">{{ class_summary.A.count }}</h3>
+                                <p class="mb-0">Class A Items</p>
+                                <small class="text-muted">{{ class_summary.A.percentage|floatformat:1 }}% of total value</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center border-left-warning">
+                            <div class="card-body">
+                                <h3 class="text-warning">{{ class_summary.B.count }}</h3>
+                                <p class="mb-0">Class B Items</p>
+                                <small class="text-muted">{{ class_summary.B.percentage|floatformat:1 }}% of total value</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center border-left-success">
+                            <div class="card-body">
+                                <h3 class="text-success">{{ class_summary.C.count }}</h3>
+                                <p class="mb-0">Class C Items</p>
+                                <small class="text-muted">{{ class_summary.C.percentage|floatformat:1 }}% of total value</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h3 class="text-info">{{ total_items }}</h3>
+                                <p class="mb-0">Total Items</p>
+                                <small class="text-muted">UGX {{ total_metric_value|floatformat:0|intcomma }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ABC Analysis Table -->
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Rank</th>
+                                <th>Product</th>
+                                <th>SKU</th>
+                                <th>Current Stock</th>
+                                <th>Metric Value</th>
+                                <th>% of Total</th>
+                                <th>Cumulative %</th>
+                                <th>Classification</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in classified_data %}
+                            <tr>
+                                <td>{{ item.rank }}</td>
+                                <td>
+                                    <strong>{{ item.product.name }}</strong>
+                                    {% if item.product.category %}
+                                        <br><small class="text-muted">{{ item.product.category.name }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>{{ item.product.sku }}</td>
+                                <td>{{ item.current_stock }}</td>
+                                <td>UGX {{ item.metric_value|floatformat:0|intcomma }}</td>
+                                <td>{{ item.item_percentage|floatformat:1 }}%</td>
+                                <td>{{ item.cumulative_percentage|floatformat:1 }}%</td>
+                                <td>
+                                    <span class="badge bg-{{ item.class_color }}">
+                                        {{ item.classification }} - {{ item.class_description }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center py-4">
+                                    <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+                                    <p class="text-muted">No products found matching the criteria.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Classification Guidelines -->
+                <div class="row mt-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>ABC Classification Guidelines
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <span class="badge bg-danger me-2">A</span>
+                                            <strong>Class A Items (Top 80%)</strong>
+                                        </div>
+                                        <p class="text-muted small">
+                                            High-value items requiring tight control, frequent review, 
+                                            and accurate records. These represent the majority of your inventory value.
+                                        </p>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <span class="badge bg-warning me-2">B</span>
+                                            <strong>Class B Items (Next 15%)</strong>
+                                        </div>
+                                        <p class="text-muted small">
+                                            Medium-value items requiring regular review and moderate control. 
+                                            These represent a moderate portion of your inventory value.
+                                        </p>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <span class="badge bg-success me-2">C</span>
+                                            <strong>Class C Items (Bottom 5%)</strong>
+                                        </div>
+                                        <p class="text-muted small">
+                                            Low-value items requiring simple control and occasional review. 
+                                            These represent the smallest portion of your inventory value.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Add any report-specific JavaScript here
+    document.addEventListener('DOMContentLoaded', function() {
+        // Auto-apply filters on select change if desired
+        // document.getElementById('basis').addEventListener('change', function() {
+        //     this.form.submit();
+        // });
+    });
+</script>
+{% endblock %}

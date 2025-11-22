@@ -1,0 +1,14 @@
+<h2>Cash Sales</h2>
+<table border="1" cellpadding="8">
+  <tr><th>Item</th><th>Quantity</th><th>Total</th><th>Date</th></tr>
+  {% for sale in sales %}
+  <tr>
+    <td>{{ sale.item.item_name }}</td>
+    <td>{{ sale.quantity }}</td>
+    <td>{{ sale.total }}</td>
+    <td>{{ sale.date }}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="4">No cash sales found</td></tr>
+  {% endfor %}
+</table>

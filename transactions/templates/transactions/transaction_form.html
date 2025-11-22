@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card p-4 shadow-sm rounded-4">
+    <h3 class="mb-4">{% if create %}New{% else %}Edit{% endif %} Transaction</h3>
+    
+    <form method="post" novalidate id="transaction-form" action="{% url 'transactions:transaction_add' %}">
+        {% csrf_token %}
+
+        <!-- Display form errors -->
+        {% if form.errors %}
+        <div class="alert alert-danger">
+            <strong>Please fix the following errors:</strong>
+            <ul>
+            {% for field in form %}
+                {% for error in field.errors %}
+                    <li>{{ field.label }}: {{ error }}</li>
+                {% endfor %}
+            {% endfor %}
+            {% for error in form.non_field_errors %}
+                <li>{{ error }}</li>
+            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-3">
+                <label for="id_date" class="form-label">Date *</label>
+                {{ form.date }}
+                {% if form.date.errors %}
+                <div class="text-danger small">{{ form.date.errors.0 }}</div>
+                {% endif %}
+            </div>
+            <div class="col-md-3">
+                <label for="id_location" class="form-label">Location *</label>
+                {{ form.location }}
+                {% if form.location.errors %}
+                <div class="text-danger small">{{ form.location.errors.0 }}</div>
+                {% endif %}
+            </div>
+            <div class="col-md-3">
+                <label for="id_opening_balance" class="form-label">Opening Balance *</label>
+                {{ form.opening_balance }}
+                {% if form.opening_balance.errors %}
+                <div class="text-danger small">{{ form.opening_balance.errors.0 }}</div>
+                {% endif %}
+            </div>
+            <div class="col-md-3">
+                <label for="id_customer_balance" class="form-label">Customer Balance *</label>
+                {{ form.customer_balance }}
+                {% if form.customer_balance.errors %}
+                <div class="text-danger small">{{ form.customer_balance.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-3">
+                <label for="id_paid" class="form-label">Paid *</label>
+                {{ form.paid }}
+                {% if form.paid.errors %}
+                <div class="text-danger small">{{ form.paid.errors.0 }}</div>
+                {% endif %}
+            </div>
+            <div class="col-md-3">
+                <label for="id_wholesale" class="form-label">Wholesale *</label>
+                {{ form.wholesale }}
+                {% if form.wholesale.errors %}
+                <div class="text-danger small">{{ form.wholesale.errors.0 }}</div>
+                {% endif %}
+            </div>
+            <div class="col-md-3">
+                <label for="id_debt" class="form-label">Debt *</label>
+                {{ form.debt }}
+                {% if form.debt.errors %}
+                <div class="text-danger small">{{ form.debt.errors.0 }}</div>
+                {% endif %}
+            </div>
+            <div class="col-md-3">
+                <label for="id_cash" class="form-label">Cash *</label>
+                {{ form.cash }}
+                {% if form.cash.errors %}
+                <div class="text-danger small">{{ form.cash.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-3">
+                <label for="id_accounts" class="form-label">Accounts *</label>
+                {{ form.accounts }}
+                {% if form.accounts.errors %}
+                <div class="text-danger small">{{ form.accounts.errors.0 }}</div>
+                {% endif %}
+            </div>
+            <div class="col-md-3">
+                <label for="id_expenses" class="form-label">Expenses *</label>
+                {{ form.expenses }}
+                {% if form.expenses.errors %}
+                <div class="text-danger small">{{ form.expenses.errors.0 }}</div>
+                {% endif %}
+            </div>
+            <div class="col-md-6">
+                <label for="id_notes" class="form-label">Notes</label>
+                {{ form.notes }}
+                {% if form.notes.errors %}
+                <div class="text-danger small">{{ form.notes.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <hr class="my-4">
+
+        <h5>Computed Totals</h5>
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <label class="form-label">Total Sales <small class="text-muted">(Excludes Opening Balance)</small></label>
+                <input type="text" id="total_sales" class="form-control bg-light" value="0.00" readonly>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Total Cashout <small class="text-muted">(All Outflows)</small></label>
+                <input type="text" id="total_cashout" class="form-control bg-light" value="0.00" readonly>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Difference <small class="text-muted">(Total Sales - Total Cashout)</small></label>
+                <input type="text" id="difference" class="form-control bg-light" value="0.00" readonly>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <input type="text" id="less_excess" class="form-control text-white bg-success" value="Balanced" readonly>
+            </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-top">
+            <button type="submit" class="btn btn-success btn-lg px-5">
+                <i class="bi bi-check-circle"></i> Save Transaction
+            </button>
+            <a href="{% url 'transactions:transaction_list' %}" class="btn btn-outline-secondary btn-lg ms-2">
+                <i class="bi bi-x-circle"></i> Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+<script>
+function parseValue(id) {
+    const field = document.getElementById(id);
+    if (!field) return 0;
+    
+    const val = field.value.trim();
+    return parseFloat(val) || 0;
+}
+
+function calculateTotals() {
+    // Parse all input values
+    const opening = parseValue('id_opening_balance'); 
+    const customer = parseValue('id_customer_balance');
+    const paid = parseValue('id_paid');
+    const wholesale = parseValue('id_wholesale');
+    const debt = parseValue('id_debt');
+    const cash = parseValue('id_cash');
+    const accounts = parseValue('id_accounts');
+    const expenses = parseValue('id_expenses');
+
+    // Calculate totals
+    const totalSales = customer + paid + wholesale;
+    const totalCashout = debt + cash + accounts + expenses;
+    const difference = totalSales - totalCashout;
+    const lessExcessValue = difference - opening;
+
+    // Update display fields
+    document.getElementById('total_sales').value = totalSales.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+    
+    document.getElementById('total_cashout').value = totalCashout.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+    
+    document.getElementById('difference').value = difference.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+
+    // Update status with color coding
+    const lessExcessField = document.getElementById('less_excess');
+    if (lessExcessValue > 0) {
+        lessExcessField.value = `Less: ${lessExcessValue.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+        lessExcessField.className = 'form-control text-white bg-warning';
+    } else if (lessExcessValue < 0) {
+        lessExcessField.value = `Excess: ${Math.abs(lessExcessValue).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+        lessExcessField.className = 'form-control text-white bg-danger';
+    } else {
+        lessExcessField.value = 'Balanced';
+        lessExcessField.className = 'form-control text-white bg-success';
+    }
+}
+
+// Initialize event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    const inputIds = [
+        'id_opening_balance', 'id_customer_balance', 'id_paid', 
+        'id_wholesale', 'id_debt', 'id_cash', 'id_accounts', 'id_expenses'
+    ];
+    
+    inputIds.forEach(id => {
+        const field = document.getElementById(id);
+        if (field) {
+            field.addEventListener('input', calculateTotals);
+            field.addEventListener('change', calculateTotals);
+        }
+    });
+    
+    // Initial calculation
+    calculateTotals();
+    
+    // Form submission handler
+    const form = document.getElementById('transaction-form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            // You can add any pre-submission validation here
+            console.log('Submitting transaction form...');
+        });
+    }
+});
+</script>
+
+<style>
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.bg-light {
+    background-color: #f8f9fa !important;
+}
+
+.card {
+    border: 1px solid #dee2e6;
+}
+
+.rounded-4 {
+    border-radius: 0.75rem !important;
+}
+</style>
+{% endblock %}

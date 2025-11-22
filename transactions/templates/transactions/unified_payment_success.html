@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block title %}Payment Successful - {{ customer.name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-check-circle me-2"></i>Payment Successful
+                </h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-4">
+                    <i class="fas fa-check-circle fa-5x text-success mb-3"></i>
+                    <h4 class="text-success">Payment Processed Successfully!</h4>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="border p-3 bg-light">
+                            <strong>Customer:</strong><br>
+                            {{ customer.name }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="border p-3 bg-light">
+                            <strong>Amount Paid:</strong><br>
+                            {{ payment.amount|floatformat:2 }} {{ currency }}
+                        </div>
+                    </div>
+                </div>
+                
+                {% if updated_sales %}
+                <div class="mb-4">
+                    <h6>Updated Sales</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Document No</th>
+                                    <th>Previous Balance</th>
+                                    <th>Amount Applied</th>
+                                    <th>New Balance</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for sale in updated_sales %}
+                                <tr>
+                                    <td>{{ sale.document_number }}</td>
+                                    <td class="text-end">{{ sale.previous_balance|floatformat:2 }}</td>
+                                    <td class="text-end text-success">{{ sale.amount_applied|floatformat:2 }}</td>
+                                    <td class="text-end">{{ sale.new_balance|floatformat:2 }}</td>
+                                    <td>
+                                        {% if sale.new_balance == 0 %}
+                                        <span class="badge bg-success">Paid</span>
+                                        {% else %}
+                                        <span class="badge bg-warning">Partial</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="d-flex gap-2 justify-content-center">
+                    <a href="{% url 'transactions:customer_detail' customer.id %}" class="btn btn-primary">
+                        <i class="fas fa-user me-1"></i>Back to Customer
+                    </a>
+                    <a href="{% url 'transactions:customer_ledger' customer.id %}" class="btn btn-info">
+                        <i class="fas fa-file-invoice me-1"></i>View Ledger
+                    </a>
+                    <a href="{% url 'transactions:customers' %}" class="btn btn-secondary">
+                        <i class="fas fa-users me-1"></i>All Customers
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

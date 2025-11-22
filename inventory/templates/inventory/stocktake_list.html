@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Stocktakes</h2>
+        <a href="{% url 'inventory:stocktake_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> New Stocktake
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label for="status" class="form-label">Status</label>
+                    <select name="status" id="status" class="form-select">
+                        <option value="">All Statuses</option>
+                        {% for status_value, status_label in status_choices %}
+                        <option value="{{ status_value }}" {% if request.GET.status == status_value %}selected{% endif %}>
+                            {{ status_label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="location" class="form-label">Location</label>
+                    <select name="location" id="location" class="form-select">
+                        <option value="">All Locations</option>
+                        {% for location in locations %}
+                        <option value="{{ location.id }}" {% if request.GET.location == location.id|stringformat:"s" %}selected{% endif %}>
+                            {{ location.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-outline-primary me-2">Filter</button>
+                    <a href="{% url 'inventory:stocktake_list' %}" class="btn btn-outline-secondary">Clear</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Stocktakes Table -->
+    <div class="card">
+        <div class="card-body">
+            {% if stocktakes %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Reference</th>
+                            <th>Location</th>
+                            <th>Status</th>
+                            <th>Items</th>
+                            <th>Progress</th>
+                            <th>Created By</th>
+                            <th>Created Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stocktake in stocktakes %}
+                        <tr>
+                            <td>
+                                <strong>{{ stocktake.reference }}</strong>
+                                {% if stocktake.notes %}
+                                <br><small class="text-muted">{{ stocktake.notes|truncatewords:5 }}</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ stocktake.location.name }}</td>
+                            <td>
+                                <span class="badge 
+                                    {% if stocktake.status == 'draft' %}bg-secondary
+                                    {% elif stocktake.status == 'in_progress' %}bg-info
+                                    {% elif stocktake.status == 'completed' %}bg-success
+                                    {% else %}bg-danger{% endif %}">
+                                    {{ stocktake.get_status_display }}
+                                </span>
+                            </td>
+                            <td>{{ stocktake.get_total_items }}</td>
+                            <td>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar 
+                                        {% if stocktake.status == 'completed' %}bg-success
+                                        {% else %}bg-primary{% endif %}" 
+                                        style="width: {{ stocktake.get_counted_items|default:0|floatformat:0 }}%">
+                                        {{ stocktake.get_counted_items }}/{{ stocktake.get_total_items }}
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ stocktake.created_by.get_full_name|default:stocktake.created_by.username }}</td>
+                            <td>{{ stocktake.created_at|date:"M d, Y H:i" }}</td>
+                            <td>
+                                <a href="{% url 'inventory:stocktake_detail' stocktake.id %}" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a>
+                                {% if stocktake.status == 'draft' %}
+                                <button type="button" class="btn btn-sm btn-outline-danger" 
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#deleteModal{{ stocktake.id }}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+
+                        <!-- Delete Modal -->
+                        {% if stocktake.status == 'draft' %}
+                        <div class="modal fade" id="deleteModal{{ stocktake.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Confirm Delete</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>Are you sure you want to delete stocktake <strong>{{ stocktake.reference }}</strong>?</p>
+                                        <p class="text-danger">This action cannot be undone.</p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                        <form method="post" action="{% url 'inventory:stocktake_delete' stocktake.id %}" class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-danger">Delete</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4">
+                <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                <h4>No Stocktakes Found</h4>
+                <p class="text-muted">Get started by creating your first stocktake.</p>
+                <a href="{% url 'inventory:stocktake_create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Create Stocktake
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

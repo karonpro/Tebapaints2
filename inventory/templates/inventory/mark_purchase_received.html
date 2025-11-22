@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-success text-white">
+            <h4 class="card-title mb-0">
+                <i class="fas fa-check-circle"></i> Mark Purchase Order as Received
+            </h4>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <h5><i class="fas fa-exclamation-triangle"></i> Confirm Receiving Purchase Order</h5>
+                <p class="mb-0">You are about to mark this purchase order as received. This will update inventory stock levels.</p>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h6 class="border-bottom pb-2">Order Details</h6>
+                    <table class="table table-bordered">
+                        <tr>
+                            <th class="bg-light">Reference:</th>
+                            <td><strong>{{ purchase_order.reference }}</strong></td>
+                        </tr>
+                        <tr>
+                            <th class="bg-light">Supplier:</th>
+                            <td>{{ purchase_order.supplier_name }}</td>
+                        </tr>
+                        <tr>
+                            <th class="bg-light">Location:</th>
+                            <td>{{ purchase_order.location.name }}</td>
+                        </tr>
+                        <tr>
+                            <th class="bg-light">Total Amount:</th>
+                            <td><strong>${{ purchase_order.total_amount|floatformat:2 }}</strong></td>
+                        </tr>
+                        <tr>
+                            <th class="bg-light">Order Date:</th>
+                            <td>{{ purchase_order.order_date|date:"M d, Y H:i" }}</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div class="col-md-6">
+                    <h6 class="border-bottom pb-2">Stock Impact</h6>
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> Stock will be added to:</h6>
+                        <p class="mb-0"><strong>{{ purchase_order.location.name }}</strong></p>
+                    </div>
+                </div>
+            </div>
+
+            <h6 class="border-bottom pb-2">Order Items</h6>
+            <div class="table-responsive mb-4">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Quantity</th>
+                            <th>Unit Price</th>
+                            <th>Total</th>
+                            <th>Current Stock</th>
+                            <th>After Receiving</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in order_items %}
+                        <tr>
+                            <td>{{ item.product.name }}</td>
+                            <td><span class="badge bg-primary">{{ item.quantity }}</span></td>
+                            <td>${{ item.unit_price|floatformat:2 }}</td>
+                            <td><strong>${{ item.get_total_cost|floatformat:2 }}</strong></td>
+                            <td>
+                                {% with item.product.stocks.all|dict_key:purchase_order.location.id as stock %}
+                                    <span class="badge bg-info">{{ stock.quantity|default:0 }}</span>
+                                {% endwith %}
+                            </td>
+                            <td>
+                                {% with item.product.stocks.all|dict_key:purchase_order.location.id as stock %}
+                                    <span class="badge bg-success">{{ stock.quantity|add:item.quantity|default:item.quantity }}</span>
+                                {% endwith %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle"></i> Important:</h6>
+                    <ul class="mb-0">
+                        <li>Stock will be added to <strong>{{ purchase_order.location.name }}</strong></li>
+                        <li>This action will process <strong>{{ order_items.count }} items</strong></li>
+                        <li>Total quantity to be added: <strong>{{ purchase_order.get_total_quantity }} units</strong></li>
+                        <li>This action <strong>cannot be undone</strong></li>
+                    </ul>
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="fas fa-check-circle"></i> Confirm Receipt & Update Stock
+                    </button>
+                    <a href="{% url 'inventory:purchase_order_list' %}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

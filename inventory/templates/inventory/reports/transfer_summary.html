@@ -1,0 +1,264 @@
+<!-- templates/inventory/reports/transfer_summary.html -->
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Transfer Summary Report{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">Transfer Summary Report</h1>
+        <div>
+            <a href="{% url 'inventory:export_transfer_report' 'summary' %}?{{ request.GET.urlencode }}" 
+               class="btn btn-outline-primary">
+                <i class="fas fa-download"></i> Export CSV
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label for="date_from" class="form-label">From Date</label>
+                    <input type="date" class="form-control" id="date_from" name="date_from" value="{{ date_from }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="date_to" class="form-label">To Date</label>
+                    <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
+                </div>
+                <div class="col-md-2">
+                    <label for="from_location" class="form-label">From Location</label>
+                    <select class="form-select" id="from_location" name="from_location">
+                        <option value="">All Locations</option>
+                        {% for location in locations %}
+                            <option value="{{ location.id }}" {% if from_location_id == location.id|stringformat:"i" %}selected{% endif %}>
+                                {{ location.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="to_location" class="form-label">To Location</label>
+                    <select class="form-select" id="to_location" name="to_location">
+                        <option value="">All Locations</option>
+                        {% for location in locations %}
+                            <option value="{{ location.id }}" {% if to_location_id == location.id|stringformat:"i" %}selected{% endif %}>
+                                {{ location.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="status" class="form-label">Status</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="">All Statuses</option>
+                        {% for status_value, status_label in status_choices %}
+                            <option value="{{ status_value }}" {% if status_filter == status_value %}selected{% endif %}>
+                                {{ status_label }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="group_by" class="form-label">Group By</label>
+                    <select class="form-select" id="group_by" name="group_by">
+                        <option value="daily" {% if group_by == 'daily' %}selected{% endif %}>Daily</option>
+                        <option value="weekly" {% if group_by == 'weekly' %}selected{% endif %}>Weekly</option>
+                        <option value="monthly" {% if group_by == 'monthly' %}selected{% endif %}>Monthly</option>
+                        <option value="location_pair" {% if group_by == 'location_pair' %}selected{% endif %}>Location Pair</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">Apply Filters</button>
+                    <a href="{% url 'inventory:transfer_summary_report' %}" class="btn btn-outline-secondary">Clear Filters</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-2 col-md-4 col-6">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Total Transfers</h6>
+                    <h3 class="mb-0">{{ total_transfers }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-6">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Total Items</h6>
+                    <h3 class="mb-0">{{ total_items }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-6">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Total Quantity</h6>
+                    <h3 class="mb-0">{{ total_quantity }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-6">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Total Value</h6>
+                    <h3 class="mb-0">UGX {{ total_transfer_value|floatformat:2 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-6">
+            <div class="card bg-secondary text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Avg Items/Transfer</h6>
+                    <h3 class="mb-0">{{ avg_items_per_transfer|floatformat:1 }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Breakdown -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Status Breakdown</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th>Count</th>
+                                    <th>Quantity</th>
+                                    <th>Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for status in status_breakdown %}
+                                <tr>
+                                    <td>
+                                        <span class="badge 
+                                            {% if status.status == 'confirmed' %}bg-success
+                                            {% elif status.status == 'pending' %}bg-warning
+                                            {% else %}bg-danger{% endif %}">
+                                            {{ status.status|title }}
+                                        </span>
+                                    </td>
+                                    <td>{{ status.count }}</td>
+                                    <td>{{ status.total_quantity|default:0 }}</td>
+                                    <td>{{ status.count|divisibleby:total_transfers|floatformat:1 }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Top Transferred Products</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Quantity</th>
+                                    <th>Transfers</th>
+                                    <th>Locations</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for product in top_products %}
+                                <tr>
+                                    <td>{{ product.product__name }}</td>
+                                    <td>{{ product.total_quantity }}</td>
+                                    <td>{{ product.transfer_count }}</td>
+                                    <td>{{ product.location_count }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center">No products found</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grouped Data Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">Transfer Summary by {{ group_by|title }}</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            {% if group_by == 'location_pair' %}
+                                <th>From Location</th>
+                                <th>To Location</th>
+                            {% else %}
+                                <th>Period</th>
+                            {% endif %}
+                            <th>Transfer Count</th>
+                            <th>Item Count</th>
+                            <th>Total Quantity</th>
+                            {% if group_by == 'location_pair' %}
+                                <th>Completed</th>
+                                <th>Pending</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in grouped_data %}
+                        <tr>
+                            {% if group_by == 'location_pair' %}
+                                <td>{{ item.from_location__name }}</td>
+                                <td>{{ item.to_location__name }}</td>
+                            {% else %}
+                                <td>
+                                    {% if group_by == 'daily' %}
+                                        {{ item.date|date:"M d, Y" }}
+                                    {% elif group_by == 'weekly' %}
+                                        Week {{ item.week }}, {{ item.year }}
+                                    {% elif group_by == 'monthly' %}
+                                        {{ item.year }}-{{ item.month|stringformat:"02d" }}
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                            <td>{{ item.transfer_count }}</td>
+                            <td>{{ item.item_count }}</td>
+                            <td>{{ item.total_quantity|default:0 }}</td>
+                            {% if group_by == 'location_pair' %}
+                                <td>{{ item.completed_count }}</td>
+                                <td>{{ item.pending_count }}</td>
+                            {% endif %}
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4">No data available for the selected filters</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

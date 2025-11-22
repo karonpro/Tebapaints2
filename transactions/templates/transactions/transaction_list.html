@@ -1,0 +1,343 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% load custom_filters %}
+
+{% block content %}
+<div class="card p-4 shadow-lg border-0 bg-dark text-light">
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-info fw-bold mb-0">
+      <i class="bi bi-currency-exchange me-2"></i>Transactions Overview
+    </h2>
+    <a class="btn btn-success btn-lg" href="{% url 'transactions:transaction_add' %}">
+      <i class="bi bi-plus-circle me-2"></i>New Transaction
+    </a>
+  </div>
+
+  <!-- Filter Form -->
+  <div class="card bg-secondary bg-opacity-25 mb-4 border-0">
+    <div class="card-body">
+      <h5 class="card-title text-light mb-3">
+        <i class="bi bi-funnel me-2"></i>Filter Transactions
+      </h5>
+      <form method="get" class="row g-3">
+        <div class="col-md-2">
+          <label class="form-label text-light small">Start Date</label>
+          <input type="date" name="start_date" value="{{ start_date|default:'' }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label text-light small">End Date</label>
+          <input type="date" name="end_date" value="{{ end_date|default:'' }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label text-light small">Search Notes</label>
+          <input type="text" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Enter search term..." class="form-control form-control-sm">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label text-light small">Location</label>
+          <select name="location" class="form-select form-select-sm">
+            <option value="">All Locations</option>
+            {% for loc in locations %}
+              <option value="{{ loc.id }}" {% if selected_location == loc.id|stringformat:'s' %}selected{% endif %}>
+                {{ loc.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-primary btn-sm w-100" type="submit">
+            <i class="bi bi-filter me-1"></i>Apply
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Totals Summary -->
+  {% if totals %}
+  <div class="row g-3 mb-4">
+    <div class="col-xl-2 col-md-4 col-6">
+      <div class="card bg-success text-white p-3 rounded-3 shadow-sm h-100">
+        <div class="card-body text-center p-2">
+          <i class="bi bi-arrow-down-circle display-6 mb-2"></i>
+          <h6 class="card-title mb-1">Total Sales</h6>
+          <h4 class="fw-bold mb-0">UGX {{ totals.sales|floatformat:0|intcomma }}</h4>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-6">
+      <div class="card bg-danger text-white p-3 rounded-3 shadow-sm h-100">
+        <div class="card-body text-center p-2">
+          <i class="bi bi-arrow-up-circle display-6 mb-2"></i>
+          <h6 class="card-title mb-1">Total Cashout</h6>
+          <h4 class="fw-bold mb-0">UGX {{ totals.cashout|floatformat:0|intcomma }}</h4>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-6">
+      <div class="card bg-info text-white p-3 rounded-3 shadow-sm h-100">
+        <div class="card-body text-center p-2">
+          <i class="bi bi-arrow-left-right display-6 mb-2"></i>
+          <h6 class="card-title mb-1">Difference</h6>
+          <h4 class="fw-bold mb-0">UGX {{ totals.difference|floatformat:0|intcomma }}</h4>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-3 col-md-6 col-6">
+      <div class="card bg-warning text-dark p-3 rounded-3 shadow-sm h-100">
+        <div class="card-body text-center p-2">
+          <i class="bi bi-exclamation-triangle display-6 mb-2"></i>
+          <h6 class="card-title mb-1">Total Less</h6>
+          <h4 class="fw-bold mb-0">UGX {{ less_value|floatformat:0|intcomma }}</h4>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-3 col-md-6 col-6">
+      <div class="card bg-success text-white p-3 rounded-3 shadow-sm h-100">
+        <div class="card-body text-center p-2">
+          <i class="bi bi-check-circle display-6 mb-2"></i>
+          <h6 class="card-title mb-1">Total Excess</h6>
+          <h4 class="fw-bold mb-0">UGX {{ excess_value|floatformat:0|intcomma }}</h4>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Transactions Table -->
+  <div class="card bg-secondary bg-opacity-25 border-0">
+    <div class="card-header bg-dark bg-opacity-50 border-bottom">
+      <h5 class="card-title mb-0 text-light">
+        <i class="bi bi-table me-2"></i>Transaction Records
+        <span class="badge bg-primary ms-2">{{ rows|length }} records</span>
+      </h5>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-dark table-hover table-striped align-middle mb-0">
+          <thead class="table-secondary">
+            <tr>
+              <th class="ps-3">Date</th>
+              <th>Location</th>
+              <th class="text-end">Total Sales</th>
+              <th class="text-end">Total Cashout</th>
+              <th class="text-end">Difference</th>
+              <th class="text-center">Status</th>
+              <th class="text-center pe-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for transaction in rows %}
+            <tr>
+              <td class="ps-3">
+                <strong>{{ transaction.date }}</strong>
+              </td>
+              <td>
+                <span class="badge bg-primary">{{ transaction.location.name|default:"No Location" }}</span>
+              </td>
+              <td class="text-end">
+                <span class="fw-bold text-success">UGX {{ transaction.total_sales|floatformat:0|intcomma }}</span>
+              </td>
+              <td class="text-end">
+                <span class="fw-bold text-danger">UGX {{ transaction.total_cashout|floatformat:0|intcomma }}</span>
+              </td>
+              <td class="text-end">
+                <span class="fw-bold {% if transaction.difference > 0 %}text-success{% else %}text-danger{% endif %}">
+                  UGX {{ transaction.difference|floatformat:0|intcomma }}
+                </span>
+              </td>
+              <td class="text-center">
+                {% if transaction.less_excess > 0 %}
+                  <span class="badge bg-danger fs-6">
+                    <i class="bi bi-arrow-down me-1"></i>Less: UGX {{ transaction.less_excess|floatformat:0|intcomma }}
+                  </span>
+                {% elif transaction.less_excess < 0 %}
+                  <span class="badge bg-success fs-6">
+                    <i class="bi bi-arrow-up me-1"></i>Excess: UGX {{ transaction.less_excess|abs_value|floatformat:0|intcomma }}
+                  </span>
+                {% else %}
+                  <span class="badge bg-secondary fs-6">
+                    <i class="bi bi-check-circle me-1"></i>Balanced
+                  </span>
+                {% endif %}
+              </td>
+             <td class="text-center pe-3">
+    <div class="action-buttons-container">
+        <!-- View Button -->
+        <a class="btn btn-info text-white fw-bold mb-2 action-btn" 
+           href="{% url 'transactions:transaction_detail' pk=transaction.pk %}"
+           title="View Full Details">
+            <i class="bi bi-eye-fill me-2"></i>VIEW DETAILS
+        </a>
+        
+        <!-- Edit Button -->
+        <a class="btn btn-warning text-dark fw-bold mb-2 action-btn" 
+           href="{% url 'transactions:transaction_edit' pk=transaction.pk %}"
+           title="Edit Transaction">
+            <i class="bi bi-pencil-fill me-2"></i>EDIT
+        </a>
+        
+        <!-- Delete Button -->
+        <a class="btn btn-danger text-white fw-bold action-btn" 
+           href="{% url 'transactions:transaction_delete' pk=transaction.pk %}"
+           onclick="return confirm('Are you sure you want to delete transaction #{{ transaction.id }}? This action cannot be undone.');"
+           title="Delete Transaction">
+            <i class="bi bi-trash-fill me-2"></i>DELETE
+        </a>
+    </div>
+</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="7" class="text-center py-4">
+                <div class="text-muted">
+                  <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                  <h5>No transactions found</h5>
+                  <p class="mb-0">Try adjusting your filters or create a new transaction.</p>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart Section -->
+  {% if totals and less_value > 0 or excess_value > 0 %}
+  <div class="card mt-4 bg-secondary bg-opacity-25 border-0">
+    <div class="card-header bg-dark bg-opacity-50 border-bottom">
+      <h5 class="card-title mb-0 text-light">
+        <i class="bi bi-bar-chart me-2"></i>Financial Overview
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-8">
+          <canvas id="lessExcessChart" height="120"></canvas>
+        </div>
+        <div class="col-md-4">
+          <div class="card bg-dark bg-opacity-50 border-0 h-100">
+            <div class="card-body">
+              <h6 class="card-title text-light mb-3">Summary</h6>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-light">Total Transactions:</span>
+                <span class="badge bg-primary">{{ rows|length }}</span>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-light">Net Position:</span>
+                <span class="badge {% if totals.difference >= 0 %}bg-success{% else %}bg-danger{% endif %}">
+                  UGX {{ totals.difference|floatformat:0|intcomma }}
+                </span>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-light">Balance Status:</span>
+                <span class="badge {% if less_value > excess_value %}bg-danger{% else %}bg-success{% endif %}">
+                  {% if less_value > excess_value %}Deficit{% else %}Surplus{% endif %}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- ChartJS -->
+{% if totals and less_value > 0 or excess_value > 0 %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const ctx = document.getElementById('lessExcessChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Cash Shortage', 'Cash Excess'],
+      datasets: [{
+        label: 'Amount (UGX)',
+        data: [{{ less_value|default:0 }}, {{ excess_value|default:0 }}],
+        backgroundColor: [
+          'rgba(231, 76, 60, 0.8)',
+          'rgba(39, 174, 96, 0.8)'
+        ],
+        borderColor: [
+          'rgba(231, 76, 60, 1)',
+          'rgba(39, 174, 96, 1)'
+        ],
+        borderWidth: 2,
+        borderRadius: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        title: {
+          display: true,
+          text: 'Cash Position Analysis',
+          color: '#ffffff',
+          font: {
+            size: 16
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            color: '#ffffff',
+            callback: function(value) {
+              return 'UGX ' + value.toLocaleString();
+            }
+          },
+          grid: {
+            color: 'rgba(255, 255, 255, 0.1)'
+          }
+        },
+        x: {
+          ticks: {
+            color: '#ffffff'
+          },
+          grid: {
+            color: 'rgba(255, 255, 255, 0.1)'
+          }
+        }
+      }
+    }
+  });
+});
+</script>
+{% endif %}
+
+<style>
+.card {
+  backdrop-filter: blur(10px);
+}
+
+.table-dark {
+  --bs-table-bg: rgba(33, 37, 41, 0.95);
+  --bs-table-border-color: #495057;
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.btn-group .btn {
+  border-radius: 0.375rem !important;
+  margin: 0 2px;
+}
+
+.badge {
+  font-size: 0.75em;
+}
+</style>
+{% endblock %}
