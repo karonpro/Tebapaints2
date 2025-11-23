@@ -1541,53 +1541,68 @@ def stock_report(request):
 
 @login_required
 def export_products_csv(request):
+    """Export comprehensive products data to CSV"""
     response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="products_import_template.csv"'
+    response['Content-Disposition'] = 'attachment; filename="products_complete_export_{}.csv"'.format(
+        timezone.now().strftime("%Y%m%d_%H%M%S")
+    )
 
     writer = csv.writer(response)
     
-    # Get user's locations for the template
+    # Comprehensive header
+    header = [
+        'ID', 'Name', 'SKU', 'Category', 'Cost Price', 'Selling Price', 
+        'Reorder Level', 'Total Stock', 'Stock Value', 'Status'
+    ]
+    
+    # Add individual location stocks
     user_locations = get_user_locations(request.user)
-    
-    # Build dynamic header based on user's locations
-    header = ['Name', 'SKU', 'Category', 'Cost Price', 'Selling Price', 'Reorder Level']
-    
-    # Add location quantity columns
-    for i, location in enumerate(user_locations, 1):
-        header.append(f'Location{i}_Quantity')
-        header.append(f'Location{i}_Name')
+    for location in user_locations:
+        header.append(f'Stock_{location.name}')
     
     writer.writerow(header)
 
-    # Sample data with various quantities including 0
-    sample_products = []
-    sample_data = [
-        ['Laptop Dell XPS', 'DELL-XPS-001', 'Electronics', '1200.00', '1500.00', '5'],
-        ['iPhone 15', 'APPLE-IP15-001', 'Electronics', '800.00', '999.00', '3'],
-        ['Office Chair', 'CHAIR-001', 'Furniture', '150.00', '199.00', '10'],
-        ['Out of Stock Item', 'OUT-OF-STOCK-001', 'General', '50.00', '75.00', '2'],  # This will have 0 stock
-    ]
-    
-    for product_data in sample_data:
-        row = product_data.copy()
+    # Get all products (not filtered by stock to include zero-stock items)
+    products = Product.objects.all().select_related('category').prefetch_related(
+        models.Prefetch(
+            'stocks',
+            queryset=ProductStock.objects.filter(location__in=user_locations)
+        )
+    )
+
+    for product in products:
+        # Calculate total stock across user locations
+        total_stock = sum(stock.quantity for stock in product.stocks.all())
+        stock_value = total_stock * float(product.cost_price)
         
-        # Add location quantities (sample data with some zeros)
-        for i, location in enumerate(user_locations, 1):
-            # Vary quantities including zeros
-            if product_data[0] == 'Out of Stock Item':
-                sample_quantity = '0'  # Explicitly 0 for out of stock
-            else:
-                sample_quantity = str(10 - (i * 3))  # Some positive, some zero/negative
-                if int(sample_quantity) < 0:
-                    sample_quantity = '0'  # Ensure non-negative
-                    
-            row.append(sample_quantity)  # Quantity
-            row.append(location.name)    # Location name
+        # Determine stock status
+        if total_stock == 0:
+            status = 'Out of Stock'
+        elif total_stock <= product.reorder_level:
+            status = 'Low Stock'
+        else:
+            status = 'In Stock'
+
+        # Base row data
+        row = [
+            product.id,
+            product.name,
+            product.sku or '',
+            product.category.name if product.category else 'Uncategorized',
+            f"{product.cost_price:.2f}",
+            f"{product.selling_price:.2f}",
+            product.reorder_level,
+            total_stock,
+            f"{stock_value:.2f}",
+            status
+        ]
         
-        sample_products.append(row)
-    
-    for product in sample_products:
-        writer.writerow(product)
+        # Add stock quantities for each location
+        for location in user_locations:
+            location_stock = product.stocks.filter(location=location).first()
+            row.append(str(location_stock.quantity) if location_stock else '0')
+        
+        writer.writerow(row)
 
     return response
 
@@ -3781,838 +3796,7 @@ def sale_payments(request, sale_id):
         'form': form,
     }
     return render(request, 'inventory/sale_payment_form.html', context)
-# =======================
-# COMPREHENSIVE REPORTS
-# =======================
 
-@login_required
-def reports_dashboard(request):
-    """Main reports dashboard with overview of all report types"""
-    # Get basic statistics for the dashboard
-    user_locations = get_user_locations(request.user)
-    
-    # Product statistics
-    total_products = Product.objects.filter(
-        stocks__location__in=user_locations
-    ).distinct().count()
-    
-    low_stock_products = Product.objects.filter(
-        stocks__location__in=user_locations,
-        stocks__quantity__lt=F('reorder_level')
-    ).distinct().count()
-    
-    out_of_stock_products = Product.objects.filter(
-        stocks__location__in=user_locations,
-        stocks__quantity=0
-    ).distinct().count()
-    
-    # Sales statistics (last 30 days)
-    thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
-    recent_sales = Sale.objects.filter(
-        location__in=user_locations,
-        date__gte=thirty_days_ago,
-        document_status='sent'
-    )
-    total_sales_revenue = recent_sales.aggregate(total=Sum('total_amount'))['total'] or 0
-    total_sales_count = recent_sales.count()
-    
-    # Purchase statistics (last 30 days)
-    recent_purchases = Purchase.objects.filter(
-        location__in=user_locations,
-        purchase_date__gte=thirty_days_ago
-    )
-    total_purchase_cost = recent_purchases.aggregate(total=Sum('total_amount'))['total'] or 0
-    total_purchase_count = recent_purchases.count()
-    
-    # Customer statistics
-    customers_with_balance = Customer.objects.filter(balance__gt=0).count()
-    total_customers = Customer.objects.count()
-    
-    context = {
-        'total_products': total_products,
-        'low_stock_products': low_stock_products,
-        'out_of_stock_products': out_of_stock_products,
-        'total_sales_revenue': total_sales_revenue,
-        'total_sales_count': total_sales_count,
-        'total_purchase_cost': total_purchase_cost,
-        'total_purchase_count': total_purchase_count,
-        'customers_with_balance': customers_with_balance,
-        'total_customers': total_customers,
-    }
-    return render(request, 'inventory/reports/dashboard.html', context)
-
-
-@login_required
-def sales_summary_report(request):
-    """Comprehensive sales summary report"""
-    sales = Sale.objects.filter(document_status='sent')
-    sales = filter_queryset_by_user_locations(sales, request.user)
-    sales = sales.select_related('customer', 'location').prefetch_related('items__product')
-    
-    # Get filter parameters
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
-    customer_id = request.GET.get('customer', '')
-    location_id = request.GET.get('location', '')
-    group_by = request.GET.get('group_by', 'daily')  # daily, weekly, monthly, customer, product
-    
-    # Apply filters
-    if date_from:
-        sales = sales.filter(date__date__gte=date_from)
-    if date_to:
-        sales = sales.filter(date__date__lte=date_to)
-    if customer_id:
-        sales = sales.filter(customer_id=customer_id)
-    if location_id:
-        try:
-            location = Location.objects.get(id=location_id)
-            if can_user_access_location(request.user, location):
-                sales = sales.filter(location_id=location_id)
-        except Location.DoesNotExist:
-            pass
-    
-    # Calculate summary statistics
-    total_revenue = sales.aggregate(total=Sum('total_amount'))['total'] or 0
-    total_cost = 0
-    total_profit = 0
-    
-    # Calculate cost and profit
-    for sale in sales:
-        for item in sale.items.all():
-            cost = item.product.cost_price * item.quantity
-            total_cost += cost
-            total_profit += item.total_price - cost
-    
-    total_margin = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
-    
-    # Group data based on selection
-    if group_by == 'daily':
-        grouped_data = sales.values('date__date').annotate(
-            revenue=Sum('total_amount'),
-            sales_count=Count('id')
-        ).order_by('date__date')
-    elif group_by == 'weekly':
-        grouped_data = sales.extra({
-            'week': "EXTRACT(WEEK FROM date)",
-            'year': "EXTRACT(YEAR FROM date)"
-        }).values('year', 'week').annotate(
-            revenue=Sum('total_amount'),
-            sales_count=Count('id')
-        ).order_by('year', 'week')
-    elif group_by == 'monthly':
-        grouped_data = sales.extra({
-            'month': "EXTRACT(MONTH FROM date)",
-            'year': "EXTRACT(YEAR FROM date)"
-        }).values('year', 'month').annotate(
-            revenue=Sum('total_amount'),
-            sales_count=Count('id')
-        ).order_by('year', 'month')
-    elif group_by == 'customer':
-        grouped_data = sales.values('customer__name').annotate(
-            revenue=Sum('total_amount'),
-            sales_count=Count('id')
-        ).order_by('-revenue')
-    elif group_by == 'product':
-        # Need to go through SaleItem for product-level grouping
-        sale_items = SaleItem.objects.filter(sale__in=sales).values(
-            'product__name'
-        ).annotate(
-            revenue=Sum('total_price'),
-            quantity_sold=Sum('quantity'),
-            sales_count=Count('sale', distinct=True)
-        ).order_by('-revenue')
-        grouped_data = list(sale_items)
-    else:
-        grouped_data = []
-    
-    # Top performing products
-    top_products = SaleItem.objects.filter(sale__in=sales).values(
-        'product__name'
-    ).annotate(
-        revenue=Sum('total_price'),
-        quantity_sold=Sum('quantity'),
-        profit=Sum(F('total_price') - F('product__cost_price') * F('quantity'))
-    ).order_by('-revenue')[:10]
-    
-    # Sales trend (last 12 months)
-    twelve_months_ago = timezone.now() - timezone.timedelta(days=365)
-    monthly_trend = sales.filter(date__gte=twelve_months_ago).extra({
-        'month': "EXTRACT(MONTH FROM date)",
-        'year': "EXTRACT(YEAR FROM date)"
-    }).values('year', 'month').annotate(
-        revenue=Sum('total_amount'),
-        sales_count=Count('id')
-    ).order_by('year', 'month')
-    
-    context = {
-        'sales': sales,
-        'total_revenue': total_revenue,
-        'total_cost': total_cost,
-        'total_profit': total_profit,
-        'total_margin': total_margin,
-        'grouped_data': grouped_data,
-        'top_products': top_products,
-        'monthly_trend': monthly_trend,
-        'group_by': group_by,
-        
-        # Filter options
-        'customers': Customer.objects.all(),
-        'locations': get_user_locations(request.user),
-        
-        # Current filter values
-        'date_from': date_from,
-        'date_to': date_to,
-        'customer_id': customer_id,
-        'location_id': location_id,
-    }
-    return render(request, 'inventory/reports/sales_summary.html', context)
-
-
-@login_required
-def product_performance_report(request):
-    """Detailed product performance and profitability report"""
-    user_locations = get_user_locations(request.user)
-    
-    # Get filter parameters
-    category_id = request.GET.get('category', '')
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
-    min_sales = request.GET.get('min_sales', 0)
-    sort_by = request.GET.get('sort_by', 'revenue')
-    
-    try:
-        min_sales = int(min_sales)
-    except ValueError:
-        min_sales = 0
-    
-    # Get sales data with filters
-    sales = Sale.objects.filter(
-        document_status='sent',
-        location__in=user_locations
-    )
-    
-    if date_from:
-        sales = sales.filter(date__date__gte=date_from)
-    if date_to:
-        sales = sales.filter(date__date__lte=date_to)
-    
-    # Get product performance data
-    products = Product.objects.all()
-    if category_id:
-        products = products.filter(category_id=category_id)
-    
-    product_performance = []
-    
-    for product in products:
-        # Get sales data for this product
-        sale_items = SaleItem.objects.filter(
-            sale__in=sales,
-            product=product
-        )
-        
-        total_sold = sale_items.aggregate(total=Sum('quantity'))['total'] or 0
-        total_revenue = sale_items.aggregate(total=Sum('total_price'))['total'] or 0
-        total_cost = product.cost_price * total_sold
-        total_profit = total_revenue - total_cost
-        profit_margin = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
-        
-        # Get current stock
-        current_stock = ProductStock.objects.filter(
-            product=product,
-            location__in=user_locations
-        ).aggregate(total=Sum('quantity'))['total'] or 0
-        
-        # Calculate sell-through rate (if we have purchase data)
-        total_purchased = PurchaseItem.objects.filter(
-            product=product,
-            purchase__location__in=user_locations
-        ).aggregate(total=Sum('quantity'))['total'] or 0
-        
-        sell_through_rate = (total_sold / total_purchased * 100) if total_purchased > 0 else 0
-        
-        # Only include products that meet minimum sales threshold
-        if total_sold >= min_sales:
-            product_performance.append({
-                'product': product,
-                'total_sold': total_sold,
-                'total_revenue': total_revenue,
-                'total_cost': total_cost,
-                'total_profit': total_profit,
-                'profit_margin': profit_margin,
-                'current_stock': current_stock,
-                'sell_through_rate': sell_through_rate,
-                'stock_turnover': total_sold / current_stock if current_stock > 0 else 0,
-            })
-    
-    # Sort the results
-    sort_options = {
-        'revenue': lambda x: x['total_revenue'],
-        'profit': lambda x: x['total_profit'],
-        'margin': lambda x: x['profit_margin'],
-        'quantity': lambda x: x['total_sold'],
-        'turnover': lambda x: x['stock_turnover'],
-    }
-    
-    if sort_by in sort_options:
-        product_performance.sort(key=sort_options[sort_by], reverse=True)
-    
-    # Summary statistics
-    total_revenue = sum(item['total_revenue'] for item in product_performance)
-    total_profit = sum(item['total_profit'] for item in product_performance)
-    total_units_sold = sum(item['total_sold'] for item in product_performance)
-    avg_margin = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
-    
-    # Identify best and worst performers
-    best_performers = sorted(product_performance, key=lambda x: x['total_profit'], reverse=True)[:5]
-    worst_performers = sorted(product_performance, key=lambda x: x['total_profit'])[:5]
-    
-    context = {
-        'product_performance': product_performance,
-        'categories': Category.objects.all(),
-        'total_revenue': total_revenue,
-        'total_profit': total_profit,
-        'total_units_sold': total_units_sold,
-        'avg_margin': avg_margin,
-        'best_performers': best_performers,
-        'worst_performers': worst_performers,
-        
-        # Filter values
-        'category_id': category_id,
-        'date_from': date_from,
-        'date_to': date_to,
-        'min_sales': min_sales,
-        'sort_by': sort_by,
-    }
-    return render(request, 'inventory/reports/product_performance.html', context)
-
-
-@login_required
-def inventory_valuation_report(request):
-    """Inventory valuation and stock analysis report"""
-    user_locations = get_user_locations(request.user)
-    
-    # Get filter parameters
-    category_id = request.GET.get('category', '')
-    stock_status = request.GET.get('stock_status', 'all')  # all, low, out, excess
-    location_id = request.GET.get('location', '')
-    
-    # Get products with their stock information
-    products = Product.objects.all()
-    
-    if category_id:
-        products = products.filter(category_id=category_id)
-    
-    inventory_data = []
-    total_valuation = 0
-    total_items = 0
-    low_stock_count = 0
-    out_of_stock_count = 0
-    excess_stock_count = 0
-    
-    for product in products:
-        # Get stock across all user locations or specific location
-        if location_id:
-            stocks = ProductStock.objects.filter(
-                product=product,
-                location_id=location_id
-            )
-        else:
-            stocks = ProductStock.objects.filter(
-                product=product,
-                location__in=user_locations
-            )
-        
-        total_quantity = stocks.aggregate(total=Sum('quantity'))['total'] or 0
-        valuation = total_quantity * float(product.cost_price)
-        
-        # Determine stock status
-        status = 'normal'
-        if total_quantity == 0:
-            status = 'out_of_stock'
-            out_of_stock_count += 1
-        elif total_quantity <= product.reorder_level:
-            status = 'low_stock'
-            low_stock_count += 1
-        elif total_quantity > (product.reorder_level * 3):  # Consider excess if 3x reorder level
-            status = 'excess_stock'
-            excess_stock_count += 1
-        
-        # Apply stock status filter
-        if stock_status != 'all':
-            if stock_status == 'low' and status != 'low_stock':
-                continue
-            elif stock_status == 'out' and status != 'out_of_stock':
-                continue
-            elif stock_status == 'excess' and status != 'excess_stock':
-                continue
-            elif stock_status == 'normal' and status != 'normal':
-                continue
-        
-        inventory_data.append({
-            'product': product,
-            'total_quantity': total_quantity,
-            'valuation': valuation,
-            'status': status,
-            'reorder_level': product.reorder_level,
-            'stocks': stocks,  # Include individual location stocks
-        })
-        
-        total_valuation += valuation
-        total_items += 1
-    
-    # Sort by valuation (highest first)
-    inventory_data.sort(key=lambda x: x['valuation'], reverse=True)
-    
-    # Category-wise breakdown
-    category_breakdown = {}
-    for item in inventory_data:
-        category_name = item['product'].category.name if item['product'].category else 'Uncategorized'
-        if category_name not in category_breakdown:
-            category_breakdown[category_name] = {
-                'count': 0,
-                'valuation': 0,
-                'percentage': 0
-            }
-        
-        category_breakdown[category_name]['count'] += 1
-        category_breakdown[category_name]['valuation'] += item['valuation']
-    
-    # Calculate percentages
-    for category in category_breakdown:
-        category_breakdown[category]['percentage'] = (
-            category_breakdown[category]['valuation'] / total_valuation * 100
-        ) if total_valuation > 0 else 0
-    
-    context = {
-        'inventory_data': inventory_data,
-        'categories': Category.objects.all(),
-        'locations': get_user_locations(request.user),
-        'total_valuation': total_valuation,
-        'total_items': total_items,
-        'low_stock_count': low_stock_count,
-        'out_of_stock_count': out_of_stock_count,
-        'excess_stock_count': excess_stock_count,
-        'category_breakdown': category_breakdown,
-        
-        # Filter values
-        'category_id': category_id,
-        'stock_status': stock_status,
-        'location_id': location_id,
-    }
-    return render(request, 'inventory/reports/inventory_valuation.html', context)
-
-
-@login_required
-def purchase_analysis_report(request):
-    """Purchase analysis and supplier performance report"""
-    purchases = Purchase.objects.all()
-    purchases = filter_queryset_by_user_locations(purchases, request.user)
-    purchases = purchases.select_related('location').prefetch_related('items__product')
-    
-    # Get filter parameters
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
-    supplier_name = request.GET.get('supplier', '')
-    location_id = request.GET.get('location', '')
-    
-    # Apply filters
-    if date_from:
-        purchases = purchases.filter(purchase_date__date__gte=date_from)
-    if date_to:
-        purchases = purchases.filter(purchase_date__date__lte=date_to)
-    if supplier_name:
-        purchases = purchases.filter(supplier_name__icontains=supplier_name)
-    if location_id:
-        try:
-            location = Location.objects.get(id=location_id)
-            if can_user_access_location(request.user, location):
-                purchases = purchases.filter(location_id=location_id)
-        except Location.DoesNotExist:
-            pass
-    
-    # Calculate supplier performance
-    supplier_performance = {}
-    total_spent = 0
-    total_items = 0
-    
-    for purchase in purchases:
-        supplier = purchase.supplier_name
-        if supplier not in supplier_performance:
-            supplier_performance[supplier] = {
-                'total_spent': 0,
-                'order_count': 0,
-                'total_items': 0,
-                'avg_order_value': 0,
-                'last_order_date': purchase.purchase_date
-            }
-        
-        supplier_performance[supplier]['total_spent'] += float(purchase.total_amount)
-        supplier_performance[supplier]['order_count'] += 1
-        supplier_performance[supplier]['total_items'] += purchase.get_total_quantity()
-        
-        if purchase.purchase_date > supplier_performance[supplier]['last_order_date']:
-            supplier_performance[supplier]['last_order_date'] = purchase.purchase_date
-        
-        total_spent += float(purchase.total_amount)
-        total_items += purchase.get_total_quantity()
-    
-    # Calculate average order value for each supplier
-    for supplier in supplier_performance:
-        supplier_performance[supplier]['avg_order_value'] = (
-            supplier_performance[supplier]['total_spent'] / 
-            supplier_performance[supplier]['order_count']
-        )
-    
-    # Convert to list and sort by total spent
-    supplier_list = [
-        {
-            'name': supplier,
-            **data
-        }
-        for supplier, data in supplier_performance.items()
-    ]
-    supplier_list.sort(key=lambda x: x['total_spent'], reverse=True)
-    
-    # Monthly purchase trend
-    twelve_months_ago = timezone.now() - timezone.timedelta(days=365)
-    monthly_trend = purchases.filter(purchase_date__gte=twelve_months_ago).extra({
-        'month': "EXTRACT(MONTH FROM purchase_date)",
-        'year': "EXTRACT(YEAR FROM purchase_date)"
-    }).values('year', 'month').annotate(
-        total_spent=Sum('total_amount'),
-        order_count=Count('id')
-    ).order_by('year', 'month')
-    
-    # Top purchased products
-    top_products = PurchaseItem.objects.filter(purchase__in=purchases).values(
-        'product__name'
-    ).annotate(
-        total_quantity=Sum('quantity'),
-        total_cost=Sum(F('quantity') * F('unit_price'))
-    ).order_by('-total_quantity')[:10]
-    
-    context = {
-        'purchases': purchases,
-        'supplier_performance': supplier_list,
-        'monthly_trend': monthly_trend,
-        'top_products': top_products,
-        'total_spent': total_spent,
-        'total_items': total_items,
-        'supplier_count': len(supplier_list),
-        
-        # Filter options
-        'locations': get_user_locations(request.user),
-        'unique_suppliers': list(set(purchase.supplier_name for purchase in purchases if purchase.supplier_name)),
-        
-        # Filter values
-        'date_from': date_from,
-        'date_to': date_to,
-        'supplier_name': supplier_name,
-        'location_id': location_id,
-    }
-    return render(request, 'inventory/reports/purchase_analysis.html', context)
-
-
-@login_required
-def customer_analysis_report(request):
-    """Customer purchasing behavior and profitability analysis"""
-    sales = Sale.objects.filter(document_status='sent')
-    sales = filter_queryset_by_user_locations(sales, request.user)
-    sales = sales.select_related('customer', 'location').prefetch_related('items__product')
-    
-    # Get filter parameters
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
-    min_orders = request.GET.get('min_orders', 1)
-    location_id = request.GET.get('location', '')
-    
-    try:
-        min_orders = int(min_orders)
-    except ValueError:
-        min_orders = 1
-    
-    # Apply filters
-    if date_from:
-        sales = sales.filter(date__date__gte=date_from)
-    if date_to:
-        sales = sales.filter(date__date__lte=date_to)
-    if location_id:
-        try:
-            location = Location.objects.get(id=location_id)
-            if can_user_access_location(request.user, location):
-                sales = sales.filter(location_id=location_id)
-        except Location.DoesNotExist:
-            pass
-    
-    # Calculate customer performance
-    customer_performance = {}
-    
-    for sale in sales:
-        customer = sale.customer
-        if not customer:
-            continue
-            
-        if customer.id not in customer_performance:
-            customer_performance[customer.id] = {
-                'customer': customer,
-                'total_spent': 0,
-                'order_count': 0,
-                'avg_order_value': 0,
-                'first_order_date': sale.date,
-                'last_order_date': sale.date,
-                'products_purchased': set(),
-                'total_profit': 0
-            }
-        
-        customer_data = customer_performance[customer.id]
-        customer_data['total_spent'] += float(sale.total_amount)
-        customer_data['order_count'] += 1
-        
-        # Calculate profit for this sale
-        sale_profit = 0
-        for item in sale.items.all():
-            cost = item.product.cost_price * item.quantity
-            sale_profit += item.total_price - cost
-            customer_data['products_purchased'].add(item.product.name)
-        
-        customer_data['total_profit'] += sale_profit
-        
-        # Update dates
-        if sale.date < customer_data['first_order_date']:
-            customer_data['first_order_date'] = sale.date
-        if sale.date > customer_data['last_order_date']:
-            customer_data['last_order_date'] = sale.date
-    
-    # Calculate averages and convert sets to counts
-    customer_list = []
-    for customer_id, data in customer_performance.items():
-        if data['order_count'] >= min_orders:
-            data['avg_order_value'] = data['total_spent'] / data['order_count']
-            data['products_count'] = len(data['products_purchased'])
-            data['profit_margin'] = (data['total_profit'] / data['total_spent'] * 100) if data['total_spent'] > 0 else 0
-            
-            # Calculate customer lifetime (in days)
-            lifetime_days = (data['last_order_date'] - data['first_order_date']).days
-            data['lifetime_days'] = max(lifetime_days, 1)  # Avoid division by zero
-            
-            # Calculate average days between orders
-            data['avg_days_between_orders'] = data['lifetime_days'] / data['order_count'] if data['order_count'] > 1 else 0
-            
-            customer_list.append(data)
-    
-    # Sort options
-    sort_by = request.GET.get('sort_by', 'total_spent')
-    sort_options = {
-        'total_spent': lambda x: x['total_spent'],
-        'order_count': lambda x: x['order_count'],
-        'avg_order_value': lambda x: x['avg_order_value'],
-        'total_profit': lambda x: x['total_profit'],
-        'profit_margin': lambda x: x['profit_margin'],
-    }
-    
-    if sort_by in sort_options:
-        customer_list.sort(key=sort_options[sort_by], reverse=True)
-    
-    # Customer segmentation
-    segments = {
-        'vip': [],  # Top 20% by spending
-        'regular': [],  # Middle 60%
-        'occasional': [],  # Bottom 20%
-    }
-    
-    if customer_list:
-        # Sort by total spent for segmentation
-        sorted_by_spent = sorted(customer_list, key=lambda x: x['total_spent'], reverse=True)
-        total_customers = len(sorted_by_spent)
-        
-        vip_count = max(1, int(total_customers * 0.2))  # At least 1 customer
-        regular_count = int(total_customers * 0.6)
-        
-        segments['vip'] = sorted_by_spent[:vip_count]
-        segments['regular'] = sorted_by_spent[vip_count:vip_count + regular_count]
-        segments['occasional'] = sorted_by_spent[vip_count + regular_count:]
-    
-    # Summary statistics
-    total_revenue = sum(customer['total_spent'] for customer in customer_list)
-    total_profit = sum(customer['total_profit'] for customer in customer_list)
-    total_customers = len(customer_list)
-    avg_customer_value = total_revenue / total_customers if total_customers > 0 else 0
-    
-    context = {
-        'customer_performance': customer_list,
-        'customer_segments': segments,
-        'total_revenue': total_revenue,
-        'total_profit': total_profit,
-        'total_customers': total_customers,
-        'avg_customer_value': avg_customer_value,
-        
-        # Filter options
-        'locations': get_user_locations(request.user),
-        
-        # Filter values
-        'date_from': date_from,
-        'date_to': date_to,
-        'min_orders': min_orders,
-        'location_id': location_id,
-        'sort_by': sort_by,
-    }
-    return render(request, 'inventory/reports/customer_analysis.html', context)
-
-
-@login_required
-def stock_movement_report(request):
-    """Stock movement and turnover analysis"""
-    user_locations = get_user_locations(request.user)
-    
-    # Get filter parameters
-    product_id = request.GET.get('product', '')
-    category_id = request.GET.get('category', '')
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
-    location_id = request.GET.get('location', '')
-    
-    # Base date range (last 90 days if not specified)
-    if not date_from:
-        date_from = (timezone.now() - timezone.timedelta(days=90)).strftime('%Y-%m-%d')
-    if not date_to:
-        date_to = timezone.now().strftime('%Y-%m-%d')
-    
-    # Convert dates for filtering
-    try:
-        start_date = timezone.datetime.strptime(date_from, '%Y-%m-%d').date()
-        end_date = timezone.datetime.strptime(date_to, '%Y-%m-%d').date()
-    except ValueError:
-        start_date = timezone.now().date() - timezone.timedelta(days=90)
-        end_date = timezone.now().date()
-    
-    # Get products with filters
-    products = Product.objects.all()
-    if product_id:
-        products = products.filter(id=product_id)
-    if category_id:
-        products = products.filter(category_id=category_id)
-    
-    stock_movement_data = []
-    
-    for product in products:
-        # Get sales in period
-        sales_items = SaleItem.objects.filter(
-            sale__document_status='sent',
-            sale__location__in=user_locations,
-            sale__date__date__range=[start_date, end_date],
-            product=product
-        )
-        
-        if location_id:
-            sales_items = sales_items.filter(sale__location_id=location_id)
-        
-        total_sold = sales_items.aggregate(total=Sum('quantity'))['total'] or 0
-        sales_revenue = sales_items.aggregate(total=Sum('total_price'))['total'] or 0
-        
-        # Get purchases in period
-        purchase_items = PurchaseItem.objects.filter(
-            purchase__location__in=user_locations,
-            purchase__purchase_date__date__range=[start_date, end_date],
-            product=product
-        )
-        
-        if location_id:
-            purchase_items = purchase_items.filter(purchase__location_id=location_id)
-        
-        total_purchased = purchase_items.aggregate(total=Sum('quantity'))['total'] or 0
-        purchase_cost = purchase_items.aggregate(
-            total=Sum(F('quantity') * F('unit_price'))
-        )['total'] or 0
-        
-        # Get transfers in period
-        transfers_out = StockTransfer.objects.filter(
-            batch__from_location__in=user_locations,
-            transfer_date__date__range=[start_date, end_date],
-            product=product,
-            status='completed'
-        )
-        
-        transfers_in = StockTransfer.objects.filter(
-            batch__to_location__in=user_locations,
-            transfer_date__date__range=[start_date, end_date],
-            product=product,
-            status='completed'
-        )
-        
-        if location_id:
-            transfers_out = transfers_out.filter(batch__from_location_id=location_id)
-            transfers_in = transfers_in.filter(batch__to_location_id=location_id)
-        
-        total_transferred_out = transfers_out.aggregate(total=Sum('quantity'))['total'] or 0
-        total_transferred_in = transfers_in.aggregate(total=Sum('quantity'))['total'] or 0
-        
-        # Get current stock
-        stocks_query = ProductStock.objects.filter(
-            product=product,
-            location__in=user_locations
-        )
-        if location_id:
-            stocks_query = stocks_query.filter(location_id=location_id)
-        
-        current_stock = stocks_query.aggregate(total=Sum('quantity'))['total'] or 0
-        
-        # Calculate net movement
-        net_movement = total_purchased + total_transferred_in - total_sold - total_transferred_out
-        
-        # Calculate stock turnover rate
-        avg_stock = current_stock  # Simplified - in reality should be average over period
-        turnover_rate = (total_sold / avg_stock) if avg_stock > 0 else 0
-        
-        # Calculate days of inventory
-        avg_daily_sales = total_sold / ((end_date - start_date).days + 1) if (end_date - start_date).days > 0 else 0
-        days_of_inventory = (current_stock / avg_daily_sales) if avg_daily_sales > 0 else 0
-        
-        stock_movement_data.append({
-            'product': product,
-            'current_stock': current_stock,
-            'total_sold': total_sold,
-            'total_purchased': total_purchased,
-            'total_transferred_out': total_transferred_out,
-            'total_transferred_in': total_transferred_in,
-            'net_movement': net_movement,
-            'sales_revenue': sales_revenue,
-            'purchase_cost': purchase_cost,
-            'turnover_rate': turnover_rate,
-            'days_of_inventory': days_of_inventory,
-        })
-    
-    # Sort by various criteria
-    sort_by = request.GET.get('sort_by', 'sales_revenue')
-    sort_options = {
-        'sales_revenue': lambda x: x['sales_revenue'],
-        'turnover_rate': lambda x: x['turnover_rate'],
-        'current_stock': lambda x: x['current_stock'],
-        'net_movement': lambda x: x['net_movement'],
-        'days_of_inventory': lambda x: x['days_of_inventory'],
-    }
-    
-    if sort_by in sort_options:
-        stock_movement_data.sort(key=sort_options[sort_by], reverse=True)
-    
-    # Identify fast and slow movers
-    fast_movers = [item for item in stock_movement_data if item['turnover_rate'] > 2]
-    slow_movers = [item for item in stock_movement_data if item['turnover_rate'] < 0.5 and item['current_stock'] > 0]
-    
-    context = {
-        'stock_movement_data': stock_movement_data,
-        'fast_movers': fast_movers,
-        'slow_movers': slow_movers,
-        'products': Product.objects.all(),
-        'categories': Category.objects.all(),
-        'locations': get_user_locations(request.user),
-        'date_from': date_from,
-        'date_to': date_to,
-        'product_id': product_id,
-        'category_id': category_id,
-        'location_id': location_id,
-        'sort_by': sort_by,
-    }
-    return render(request, 'inventory/reports/stock_movement.html', context)
 
 
 @login_required
@@ -7418,4 +6602,1002 @@ def purchase_price_variance_report(request):
     
     return render(request, 'inventory/reports/purchase_price_variance.html', context)
 
+# =======================
+# COMPREHENSIVE REPORTS
+# =======================
+from django.db.models import Q, F, Sum, Count, Avg, Min, Max
+from django.core.exceptions import ObjectDoesNotExist
+import logging
 
+logger = logging.getLogger(__name__)
+
+@login_required
+def reports_dashboard(request):
+    """Main reports dashboard with overview of all report types - FIXED"""
+    try:
+        user_locations = get_user_locations(request.user)
+        
+        # Product statistics with safe counting
+        total_products = Product.objects.filter(
+            stocks__location__in=user_locations
+        ).distinct().count()
+        
+        low_stock_products = Product.objects.filter(
+            stocks__location__in=user_locations,
+            stocks__quantity__lt=F('reorder_level')
+        ).distinct().count()
+        
+        out_of_stock_products = Product.objects.filter(
+            stocks__location__in=user_locations,
+            stocks__quantity=0
+        ).distinct().count()
+        
+        # Sales statistics (last 30 days) with safe aggregation
+        thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+        recent_sales = Sale.objects.filter(
+            location__in=user_locations,
+            date__gte=thirty_days_ago,
+            document_status='sent'
+        )
+        total_sales_revenue = recent_sales.aggregate(total=Sum('total_amount'))['total'] or 0
+        total_sales_count = recent_sales.count()
+        
+        # Purchase statistics (last 30 days)
+        recent_purchases = Purchase.objects.filter(
+            location__in=user_locations,
+            purchase_date__gte=thirty_days_ago
+        )
+        total_purchase_cost = recent_purchases.aggregate(total=Sum('total_amount'))['total'] or 0
+        total_purchase_count = recent_purchases.count()
+        
+        # Customer statistics with safe import
+        try:
+            from transactions.models import Customer
+            customers_with_balance = Customer.objects.filter(balance__gt=0).count()
+            total_customers = Customer.objects.count()
+        except ImportError:
+            customers_with_balance = 0
+            total_customers = 0
+        
+        context = {
+            'total_products': total_products,
+            'low_stock_products': low_stock_products,
+            'out_of_stock_products': out_of_stock_products,
+            'total_sales_revenue': total_sales_revenue,
+            'total_sales_count': total_sales_count,
+            'total_purchase_cost': total_purchase_cost,
+            'total_purchase_count': total_purchase_count,
+            'customers_with_balance': customers_with_balance,
+            'total_customers': total_customers,
+        }
+        return render(request, 'inventory/reports/dashboard.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error in reports_dashboard: {str(e)}")
+        # Return safe fallback context
+        return render(request, 'inventory/reports/dashboard.html', {
+            'total_products': 0,
+            'low_stock_products': 0,
+            'out_of_stock_products': 0,
+            'total_sales_revenue': 0,
+            'total_sales_count': 0,
+            'total_purchase_cost': 0,
+            'total_purchase_count': 0,
+            'customers_with_balance': 0,
+            'total_customers': 0,
+            'error': 'Unable to load dashboard data'
+        })
+
+
+@login_required
+def sales_summary_report(request):
+    """Comprehensive sales summary report - FIXED"""
+    try:
+        # Safe queryset with proper filtering
+        sales = Sale.objects.filter(document_status='sent')
+        sales = filter_queryset_by_user_locations(sales, request.user)
+        
+        # Get filter parameters with safe defaults
+        date_from = request.GET.get('date_from', '')
+        date_to = request.GET.get('date_to', '')
+        customer_id = request.GET.get('customer', '')
+        location_id = request.GET.get('location', '')
+        group_by = request.GET.get('group_by', 'daily')
+        
+        # Apply filters safely
+        if date_from:
+            try:
+                sales = sales.filter(date__date__gte=date_from)
+            except ValueError:
+                pass  # Invalid date format
+        
+        if date_to:
+            try:
+                sales = sales.filter(date__date__lte=date_to)
+            except ValueError:
+                pass
+        
+        if customer_id:
+            sales = sales.filter(customer_id=customer_id)
+            
+        if location_id:
+            try:
+                location = Location.objects.get(id=location_id)
+                if can_user_access_location(request.user, location):
+                    sales = sales.filter(location_id=location_id)
+            except (Location.DoesNotExist, ValueError):
+                pass
+        
+        # Calculate summary statistics safely
+        total_revenue = sales.aggregate(total=Sum('total_amount'))['total'] or 0
+        total_cost = 0
+        total_profit = 0
+        
+        # Safely calculate cost and profit
+        for sale in sales.prefetch_related('items__product'):
+            for item in sale.items.all():
+                try:
+                    cost = float(item.product.cost_price or 0) * item.quantity
+                    total_cost += cost
+                    total_profit += float(item.total_price or 0) - cost
+                except (TypeError, ValueError):
+                    continue
+        
+        total_margin = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
+        
+        # Safe grouping with fallbacks
+        grouped_data = []
+        try:
+            if group_by == 'daily':
+                grouped_data = sales.values('date__date').annotate(
+                    revenue=Sum('total_amount'),
+                    sales_count=Count('id')
+                ).order_by('date__date')
+            elif group_by == 'weekly':
+                grouped_data = sales.extra({
+                    'week': "EXTRACT(WEEK FROM date)",
+                    'year': "EXTRACT(YEAR FROM date)"
+                }).values('year', 'week').annotate(
+                    revenue=Sum('total_amount'),
+                    sales_count=Count('id')
+                ).order_by('year', 'week')
+            elif group_by == 'monthly':
+                grouped_data = sales.extra({
+                    'month': "EXTRACT(MONTH FROM date)",
+                    'year': "EXTRACT(YEAR FROM date)"
+                }).values('year', 'month').annotate(
+                    revenue=Sum('total_amount'),
+                    sales_count=Count('id')
+                ).order_by('year', 'month')
+            elif group_by == 'customer':
+                grouped_data = sales.values('customer__name').annotate(
+                    revenue=Sum('total_amount'),
+                    sales_count=Count('id')
+                ).order_by('-revenue')
+            elif group_by == 'product':
+                sale_items = SaleItem.objects.filter(sale__in=sales).values(
+                    'product__name'
+                ).annotate(
+                    revenue=Sum('total_price'),
+                    quantity_sold=Sum('quantity'),
+                    sales_count=Count('sale', distinct=True)
+                ).order_by('-revenue')
+                grouped_data = list(sale_items)
+        except Exception as e:
+            logger.error(f"Error in sales grouping: {str(e)}")
+            grouped_data = []
+        
+        # Safe top products query
+        try:
+            top_products = SaleItem.objects.filter(sale__in=sales).values(
+                'product__name'
+            ).annotate(
+                revenue=Sum('total_price'),
+                quantity_sold=Sum('quantity'),
+                profit=Sum(F('total_price') - F('product__cost_price') * F('quantity'))
+            ).order_by('-revenue')[:10]
+        except:
+            top_products = []
+        
+        # Safe customer and location queries
+        try:
+            from transactions.models import Customer
+            customers = Customer.objects.all()[:50]  # Limit for performance
+        except ImportError:
+            customers = []
+        
+        try:
+            locations = get_user_locations(request.user)
+        except:
+            locations = []
+        
+        context = {
+            'sales': sales,
+            'total_revenue': total_revenue,
+            'total_cost': total_cost,
+            'total_profit': total_profit,
+            'total_margin': total_margin,
+            'grouped_data': grouped_data,
+            'top_products': top_products,
+            'group_by': group_by,
+            'customers': customers,
+            'locations': locations,
+            'date_from': date_from,
+            'date_to': date_to,
+            'customer_id': customer_id,
+            'location_id': location_id,
+        }
+        return render(request, 'inventory/reports/sales_summary.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error in sales_summary_report: {str(e)}")
+        return render(request, 'inventory/reports/sales_summary.html', {
+            'error': 'Unable to generate sales report',
+            'sales': [],
+            'total_revenue': 0,
+            'total_cost': 0,
+            'total_profit': 0,
+            'total_margin': 0,
+            'grouped_data': [],
+            'top_products': [],
+            'customers': [],
+            'locations': get_user_locations(request.user),
+        })
+
+
+@login_required
+def product_performance_report(request):
+    """Detailed product performance and profitability report - FIXED"""
+    try:
+        user_locations = get_user_locations(request.user)
+        
+        # Get filter parameters with safe conversion
+        category_id = request.GET.get('category', '')
+        date_from = request.GET.get('date_from', '')
+        date_to = request.GET.get('date_to', '')
+        min_sales = request.GET.get('min_sales', '0')
+        sort_by = request.GET.get('sort_by', 'revenue')
+        
+        try:
+            min_sales = int(min_sales)
+        except ValueError:
+            min_sales = 0
+        
+        # Get sales data with safe filtering
+        sales = Sale.objects.filter(
+            document_status='sent',
+            location__in=user_locations
+        )
+        
+        if date_from:
+            try:
+                sales = sales.filter(date__date__gte=date_from)
+            except ValueError:
+                pass
+        
+        if date_to:
+            try:
+                sales = sales.filter(date__date__lte=date_to)
+            except ValueError:
+                pass
+        
+        # Get product performance data safely
+        products = Product.objects.all()
+        if category_id:
+            products = products.filter(category_id=category_id)
+        
+        product_performance = []
+        
+        for product in products:
+            try:
+                # Get sales data for this product
+                sale_items = SaleItem.objects.filter(
+                    sale__in=sales,
+                    product=product
+                )
+                
+                total_sold = sale_items.aggregate(total=Sum('quantity'))['total'] or 0
+                total_revenue = sale_items.aggregate(total=Sum('total_price'))['total'] or 0
+                total_cost = float(product.cost_price or 0) * total_sold
+                total_profit = total_revenue - total_cost
+                profit_margin = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
+                
+                # Get current stock safely
+                current_stock = ProductStock.objects.filter(
+                    product=product,
+                    location__in=user_locations
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+                
+                # Only include products that meet minimum sales threshold
+                if total_sold >= min_sales:
+                    product_performance.append({
+                        'product': product,
+                        'total_sold': total_sold,
+                        'total_revenue': total_revenue,
+                        'total_cost': total_cost,
+                        'total_profit': total_profit,
+                        'profit_margin': profit_margin,
+                        'current_stock': current_stock,
+                        'stock_turnover': total_sold / current_stock if current_stock > 0 else 0,
+                    })
+            except Exception as e:
+                logger.error(f"Error processing product {product.id}: {str(e)}")
+                continue
+        
+        # Safe sorting
+        sort_options = {
+            'revenue': lambda x: x['total_revenue'],
+            'profit': lambda x: x['total_profit'],
+            'margin': lambda x: x['profit_margin'],
+            'quantity': lambda x: x['total_sold'],
+            'turnover': lambda x: x['stock_turnover'],
+        }
+        
+        if sort_by in sort_options:
+            try:
+                product_performance.sort(key=sort_options[sort_by], reverse=True)
+            except:
+                product_performance.sort(key=lambda x: x['total_revenue'], reverse=True)
+        
+        # Safe summary statistics
+        total_revenue = sum(item['total_revenue'] for item in product_performance)
+        total_profit = sum(item['total_profit'] for item in product_performance)
+        total_units_sold = sum(item['total_sold'] for item in product_performance)
+        avg_margin = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
+        
+        # Safe best/worst performers
+        try:
+            best_performers = sorted(product_performance, key=lambda x: x['total_profit'], reverse=True)[:5]
+            worst_performers = sorted(product_performance, key=lambda x: x['total_profit'])[:5]
+        except:
+            best_performers = []
+            worst_performers = []
+        
+        context = {
+            'product_performance': product_performance,
+            'categories': Category.objects.all(),
+            'total_revenue': total_revenue,
+            'total_profit': total_profit,
+            'total_units_sold': total_units_sold,
+            'avg_margin': avg_margin,
+            'best_performers': best_performers,
+            'worst_performers': worst_performers,
+            'category_id': category_id,
+            'date_from': date_from,
+            'date_to': date_to,
+            'min_sales': min_sales,
+            'sort_by': sort_by,
+        }
+        return render(request, 'inventory/reports/product_performance.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error in product_performance_report: {str(e)}")
+        return render(request, 'inventory/reports/product_performance.html', {
+            'error': 'Unable to generate product performance report',
+            'product_performance': [],
+            'categories': Category.objects.all(),
+            'total_revenue': 0,
+            'total_profit': 0,
+            'total_units_sold': 0,
+            'avg_margin': 0,
+            'best_performers': [],
+            'worst_performers': [],
+        })
+
+
+@login_required
+def inventory_valuation_report(request):
+    """Inventory valuation and stock analysis report - FIXED"""
+    try:
+        user_locations = get_user_locations(request.user)
+        
+        # Get filter parameters
+        category_id = request.GET.get('category', '')
+        stock_status = request.GET.get('stock_status', 'all')
+        location_id = request.GET.get('location', '')
+        
+        # Get products with safe filtering
+        products = Product.objects.all()
+        if category_id:
+            products = products.filter(category_id=category_id)
+        
+        inventory_data = []
+        total_valuation = 0
+        total_items = 0
+        low_stock_count = 0
+        out_of_stock_count = 0
+        excess_stock_count = 0
+        
+        for product in products:
+            try:
+                # Get stock safely
+                if location_id:
+                    stocks = ProductStock.objects.filter(
+                        product=product,
+                        location_id=location_id
+                    )
+                else:
+                    stocks = ProductStock.objects.filter(
+                        product=product,
+                        location__in=user_locations
+                    )
+                
+                total_quantity = stocks.aggregate(total=Sum('quantity'))['total'] or 0
+                valuation = total_quantity * float(product.cost_price or 0)
+                
+                # Determine stock status safely
+                status = 'normal'
+                if total_quantity == 0:
+                    status = 'out_of_stock'
+                    out_of_stock_count += 1
+                elif total_quantity <= (product.reorder_level or 0):
+                    status = 'low_stock'
+                    low_stock_count += 1
+                elif total_quantity > ((product.reorder_level or 0) * 3):
+                    status = 'excess_stock'
+                    excess_stock_count += 1
+                
+                # Apply stock status filter
+                if stock_status != 'all':
+                    if stock_status == 'low' and status != 'low_stock':
+                        continue
+                    elif stock_status == 'out' and status != 'out_of_stock':
+                        continue
+                    elif stock_status == 'excess' and status != 'excess_stock':
+                        continue
+                    elif stock_status == 'normal' and status != 'normal':
+                        continue
+                
+                inventory_data.append({
+                    'product': product,
+                    'total_quantity': total_quantity,
+                    'valuation': valuation,
+                    'status': status,
+                    'reorder_level': product.reorder_level or 0,
+                    'stocks': stocks,
+                })
+                
+                total_valuation += valuation
+                total_items += 1
+                
+            except Exception as e:
+                logger.error(f"Error processing product {product.id} in inventory valuation: {str(e)}")
+                continue
+        
+        # Safe sorting
+        inventory_data.sort(key=lambda x: x['valuation'], reverse=True)
+        
+        # Safe category breakdown
+        category_breakdown = {}
+        for item in inventory_data:
+            try:
+                category_name = item['product'].category.name if item['product'].category else 'Uncategorized'
+                if category_name not in category_breakdown:
+                    category_breakdown[category_name] = {
+                        'count': 0,
+                        'valuation': 0,
+                        'percentage': 0
+                    }
+                
+                category_breakdown[category_name]['count'] += 1
+                category_breakdown[category_name]['valuation'] += item['valuation']
+            except:
+                continue
+        
+        # Safe percentage calculation
+        for category in category_breakdown:
+            category_breakdown[category]['percentage'] = (
+                category_breakdown[category]['valuation'] / total_valuation * 100
+            ) if total_valuation > 0 else 0
+        
+        context = {
+            'inventory_data': inventory_data,
+            'categories': Category.objects.all(),
+            'locations': get_user_locations(request.user),
+            'total_valuation': total_valuation,
+            'total_items': total_items,
+            'low_stock_count': low_stock_count,
+            'out_of_stock_count': out_of_stock_count,
+            'excess_stock_count': excess_stock_count,
+            'category_breakdown': category_breakdown,
+            'category_id': category_id,
+            'stock_status': stock_status,
+            'location_id': location_id,
+        }
+        return render(request, 'inventory/reports/inventory_valuation.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error in inventory_valuation_report: {str(e)}")
+        return render(request, 'inventory/reports/inventory_valuation.html', {
+            'error': 'Unable to generate inventory valuation report',
+            'inventory_data': [],
+            'categories': Category.objects.all(),
+            'locations': get_user_locations(request.user),
+            'total_valuation': 0,
+            'total_items': 0,
+            'low_stock_count': 0,
+            'out_of_stock_count': 0,
+            'excess_stock_count': 0,
+            'category_breakdown': {},
+        })
+
+
+@login_required
+def purchase_analysis_report(request):
+    """Purchase analysis and supplier performance report - FIXED"""
+    try:
+        purchases = Purchase.objects.all()
+        purchases = filter_queryset_by_user_locations(purchases, request.user)
+        
+        # Get filter parameters
+        date_from = request.GET.get('date_from', '')
+        date_to = request.GET.get('date_to', '')
+        supplier_name = request.GET.get('supplier', '')
+        location_id = request.GET.get('location', '')
+        
+        # Apply safe filters
+        if date_from:
+            try:
+                purchases = purchases.filter(purchase_date__date__gte=date_from)
+            except ValueError:
+                pass
+        
+        if date_to:
+            try:
+                purchases = purchases.filter(purchase_date__date__lte=date_to)
+            except ValueError:
+                pass
+        
+        if supplier_name:
+            purchases = purchases.filter(supplier_name__icontains=supplier_name)
+            
+        if location_id:
+            try:
+                location = Location.objects.get(id=location_id)
+                if can_user_access_location(request.user, location):
+                    purchases = purchases.filter(location_id=location_id)
+            except (Location.DoesNotExist, ValueError):
+                pass
+        
+        # Safe supplier performance calculation
+        supplier_performance = {}
+        total_spent = 0
+        total_items = 0
+        
+        for purchase in purchases:
+            try:
+                supplier = purchase.supplier_name or 'Unknown Supplier'
+                if supplier not in supplier_performance:
+                    supplier_performance[supplier] = {
+                        'total_spent': 0,
+                        'order_count': 0,
+                        'total_items': 0,
+                        'avg_order_value': 0,
+                        'last_order_date': purchase.purchase_date
+                    }
+                
+                supplier_performance[supplier]['total_spent'] += float(purchase.total_amount or 0)
+                supplier_performance[supplier]['order_count'] += 1
+                supplier_performance[supplier]['total_items'] += purchase.get_total_quantity()
+                
+                if purchase.purchase_date > supplier_performance[supplier]['last_order_date']:
+                    supplier_performance[supplier]['last_order_date'] = purchase.purchase_date
+                
+                total_spent += float(purchase.total_amount or 0)
+                total_items += purchase.get_total_quantity()
+            except Exception as e:
+                logger.error(f"Error processing purchase {purchase.id}: {str(e)}")
+                continue
+        
+        # Safe average calculation
+        for supplier in supplier_performance:
+            try:
+                supplier_performance[supplier]['avg_order_value'] = (
+                    supplier_performance[supplier]['total_spent'] / 
+                    supplier_performance[supplier]['order_count']
+                )
+            except ZeroDivisionError:
+                supplier_performance[supplier]['avg_order_value'] = 0
+        
+        # Convert to list and sort safely
+        supplier_list = []
+        for supplier, data in supplier_performance.items():
+            supplier_list.append({
+                'name': supplier,
+                **data
+            })
+        
+        supplier_list.sort(key=lambda x: x['total_spent'], reverse=True)
+        
+        # Safe unique suppliers list
+        unique_suppliers = list(set(
+            purchase.supplier_name for purchase in purchases 
+            if purchase.supplier_name
+        ))
+        
+        context = {
+            'purchases': purchases,
+            'supplier_performance': supplier_list,
+            'total_spent': total_spent,
+            'total_items': total_items,
+            'supplier_count': len(supplier_list),
+            'locations': get_user_locations(request.user),
+            'unique_suppliers': unique_suppliers,
+            'date_from': date_from,
+            'date_to': date_to,
+            'supplier_name': supplier_name,
+            'location_id': location_id,
+        }
+        return render(request, 'inventory/reports/purchase_analysis.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error in purchase_analysis_report: {str(e)}")
+        return render(request, 'inventory/reports/purchase_analysis.html', {
+            'error': 'Unable to generate purchase analysis report',
+            'purchases': [],
+            'supplier_performance': [],
+            'total_spent': 0,
+            'total_items': 0,
+            'supplier_count': 0,
+            'locations': get_user_locations(request.user),
+            'unique_suppliers': [],
+        })
+
+
+@login_required
+def customer_analysis_report(request):
+    """Customer purchasing behavior and profitability analysis - FIXED"""
+    try:
+        # Safe import
+        try:
+            from transactions.models import Customer
+        except ImportError:
+            Customer = None
+        
+        sales = Sale.objects.filter(document_status='sent')
+        sales = filter_queryset_by_user_locations(sales, request.user)
+        
+        # Get filter parameters with safe conversion
+        date_from = request.GET.get('date_from', '')
+        date_to = request.GET.get('date_to', '')
+        min_orders = request.GET.get('min_orders', '1')
+        location_id = request.GET.get('location', '')
+        sort_by = request.GET.get('sort_by', 'total_spent')
+        
+        try:
+            min_orders = int(min_orders)
+        except ValueError:
+            min_orders = 1
+        
+        # Apply safe filters
+        if date_from:
+            try:
+                sales = sales.filter(date__date__gte=date_from)
+            except ValueError:
+                pass
+        
+        if date_to:
+            try:
+                sales = sales.filter(date__date__lte=date_to)
+            except ValueError:
+                pass
+        
+        if location_id:
+            try:
+                location = Location.objects.get(id=location_id)
+                if can_user_access_location(request.user, location):
+                    sales = sales.filter(location_id=location_id)
+            except (Location.DoesNotExist, ValueError):
+                pass
+        
+        # Safe customer performance calculation
+        customer_performance = {}
+        
+        for sale in sales.select_related('customer').prefetch_related('items__product'):
+            try:
+                customer = sale.customer
+                if not customer:
+                    continue
+                    
+                if customer.id not in customer_performance:
+                    customer_performance[customer.id] = {
+                        'customer': customer,
+                        'total_spent': 0,
+                        'order_count': 0,
+                        'avg_order_value': 0,
+                        'first_order_date': sale.date,
+                        'last_order_date': sale.date,
+                        'products_purchased': set(),
+                        'total_profit': 0
+                    }
+                
+                customer_data = customer_performance[customer.id]
+                customer_data['total_spent'] += float(sale.total_amount or 0)
+                customer_data['order_count'] += 1
+                
+                # Safe profit calculation
+                sale_profit = 0
+                for item in sale.items.all():
+                    try:
+                        cost = float(item.product.cost_price or 0) * item.quantity
+                        sale_profit += float(item.total_price or 0) - cost
+                        customer_data['products_purchased'].add(item.product.name)
+                    except (TypeError, ValueError):
+                        continue
+                
+                customer_data['total_profit'] += sale_profit
+                
+                # Safe date updates
+                if sale.date < customer_data['first_order_date']:
+                    customer_data['first_order_date'] = sale.date
+                if sale.date > customer_data['last_order_date']:
+                    customer_data['last_order_date'] = sale.date
+                    
+            except Exception as e:
+                logger.error(f"Error processing sale {sale.id}: {str(e)}")
+                continue
+        
+        # Convert to list with safe calculations
+        customer_list = []
+        for customer_id, data in customer_performance.items():
+            if data['order_count'] >= min_orders:
+                try:
+                    data['avg_order_value'] = data['total_spent'] / data['order_count']
+                    data['products_count'] = len(data['products_purchased'])
+                    data['profit_margin'] = (data['total_profit'] / data['total_spent'] * 100) if data['total_spent'] > 0 else 0
+                    
+                    # Safe lifetime calculation
+                    lifetime_days = (data['last_order_date'] - data['first_order_date']).days
+                    data['lifetime_days'] = max(lifetime_days, 1)
+                    data['avg_days_between_orders'] = data['lifetime_days'] / data['order_count'] if data['order_count'] > 1 else 0
+                    
+                    customer_list.append(data)
+                except Exception as e:
+                    logger.error(f"Error processing customer {customer_id}: {str(e)}")
+                    continue
+        
+        # Safe sorting
+        sort_options = {
+            'total_spent': lambda x: x['total_spent'],
+            'order_count': lambda x: x['order_count'],
+            'avg_order_value': lambda x: x['avg_order_value'],
+            'total_profit': lambda x: x['total_profit'],
+            'profit_margin': lambda x: x['profit_margin'],
+        }
+        
+        if sort_by in sort_options:
+            try:
+                customer_list.sort(key=sort_options[sort_by], reverse=True)
+            except:
+                customer_list.sort(key=lambda x: x['total_spent'], reverse=True)
+        
+        # Safe customer segmentation
+        segments = {
+            'vip': [],
+            'regular': [], 
+            'occasional': [],
+        }
+        
+        if customer_list:
+            try:
+                sorted_by_spent = sorted(customer_list, key=lambda x: x['total_spent'], reverse=True)
+                total_customers = len(sorted_by_spent)
+                
+                vip_count = max(1, int(total_customers * 0.2))
+                regular_count = int(total_customers * 0.6)
+                
+                segments['vip'] = sorted_by_spent[:vip_count]
+                segments['regular'] = sorted_by_spent[vip_count:vip_count + regular_count]
+                segments['occasional'] = sorted_by_spent[vip_count + regular_count:]
+            except:
+                segments['vip'] = customer_list
+        
+        # Safe summary statistics
+        total_revenue = sum(customer['total_spent'] for customer in customer_list) if customer_list else 0
+        total_profit = sum(customer['total_profit'] for customer in customer_list) if customer_list else 0
+        total_customers = len(customer_list)
+        avg_customer_value = total_revenue / total_customers if total_customers > 0 else 0
+        
+        context = {
+            'customer_performance': customer_list,
+            'customer_segments': segments,
+            'total_revenue': total_revenue,
+            'total_profit': total_profit,
+            'total_customers': total_customers,
+            'avg_customer_value': avg_customer_value,
+            'now': timezone.now(),
+            'locations': get_user_locations(request.user),
+            'date_from': date_from,
+            'date_to': date_to,
+            'min_orders': min_orders,
+            'location_id': location_id,
+            'sort_by': sort_by,
+        }
+        return render(request, 'inventory/reports/customer_analysis.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error in customer_analysis_report: {str(e)}")
+        return render(request, 'inventory/reports/customer_analysis.html', {
+            'error': 'Unable to generate customer analysis report',
+            'customer_performance': [],
+            'customer_segments': {'vip': [], 'regular': [], 'occasional': []},
+            'total_revenue': 0,
+            'total_profit': 0,
+            'total_customers': 0,
+            'avg_customer_value': 0,
+            'now': timezone.now(),
+            'locations': get_user_locations(request.user),
+        })
+
+
+@login_required
+def stock_movement_report(request):
+    """Stock movement and turnover analysis - FIXED"""
+    try:
+        user_locations = get_user_locations(request.user)
+        
+        # Get filter parameters with safe defaults
+        product_id = request.GET.get('product', '')
+        category_id = request.GET.get('category', '')
+        date_from = request.GET.get('date_from', '')
+        date_to = request.GET.get('date_to', '')
+        location_id = request.GET.get('location', '')
+        sort_by = request.GET.get('sort_by', 'sales_revenue')
+        
+        # Safe date handling
+        try:
+            if not date_from:
+                date_from = (timezone.now() - timezone.timedelta(days=90)).strftime('%Y-%m-%d')
+            if not date_to:
+                date_to = timezone.now().strftime('%Y-%m-%d')
+            
+            start_date = timezone.datetime.strptime(date_from, '%Y-%m-%d').date()
+            end_date = timezone.datetime.strptime(date_to, '%Y-%m-%d').date()
+        except ValueError:
+            start_date = timezone.now().date() - timezone.timedelta(days=90)
+            end_date = timezone.now().date()
+        
+        # Get products with safe filtering
+        products = Product.objects.all()
+        if product_id:
+            products = products.filter(id=product_id)
+        if category_id:
+            products = products.filter(category_id=category_id)
+        
+        stock_movement_data = []
+        
+        for product in products:
+            try:
+                # Safe sales data
+                sales_items = SaleItem.objects.filter(
+                    sale__document_status='sent',
+                    sale__location__in=user_locations,
+                    sale__date__date__range=[start_date, end_date],
+                    product=product
+                )
+                
+                if location_id:
+                    sales_items = sales_items.filter(sale__location_id=location_id)
+                
+                total_sold = sales_items.aggregate(total=Sum('quantity'))['total'] or 0
+                sales_revenue = sales_items.aggregate(total=Sum('total_price'))['total'] or 0
+                
+                # Safe purchase data
+                purchase_items = PurchaseItem.objects.filter(
+                    purchase__location__in=user_locations,
+                    purchase__purchase_date__date__range=[start_date, end_date],
+                    product=product
+                )
+                
+                if location_id:
+                    purchase_items = purchase_items.filter(purchase__location_id=location_id)
+                
+                total_purchased = purchase_items.aggregate(total=Sum('quantity'))['total'] or 0
+                purchase_cost = purchase_items.aggregate(
+                    total=Sum(F('quantity') * F('unit_price'))
+                )['total'] or 0
+                
+                # Safe transfer data
+                transfers_out = StockTransfer.objects.filter(
+                    batch__from_location__in=user_locations,
+                    transfer_date__date__range=[start_date, end_date],
+                    product=product,
+                    status='completed'
+                )
+                
+                transfers_in = StockTransfer.objects.filter(
+                    batch__to_location__in=user_locations,
+                    transfer_date__date__range=[start_date, end_date],
+                    product=product,
+                    status='completed'
+                )
+                
+                if location_id:
+                    transfers_out = transfers_out.filter(batch__from_location_id=location_id)
+                    transfers_in = transfers_in.filter(batch__to_location_id=location_id)
+                
+                total_transferred_out = transfers_out.aggregate(total=Sum('quantity'))['total'] or 0
+                total_transferred_in = transfers_in.aggregate(total=Sum('quantity'))['total'] or 0
+                
+                # Safe current stock
+                stocks_query = ProductStock.objects.filter(
+                    product=product,
+                    location__in=user_locations
+                )
+                if location_id:
+                    stocks_query = stocks_query.filter(location_id=location_id)
+                
+                current_stock = stocks_query.aggregate(total=Sum('quantity'))['total'] or 0
+                
+                # Safe calculations
+                net_movement = total_purchased + total_transferred_in - total_sold - total_transferred_out
+                turnover_rate = (total_sold / current_stock) if current_stock > 0 else 0
+                
+                period_days = max((end_date - start_date).days, 1)
+                avg_daily_sales = total_sold / period_days
+                days_of_inventory = (current_stock / avg_daily_sales) if avg_daily_sales > 0 else 0
+                
+                stock_movement_data.append({
+                    'product': product,
+                    'current_stock': current_stock,
+                    'total_sold': total_sold,
+                    'total_purchased': total_purchased,
+                    'total_transferred_out': total_transferred_out,
+                    'total_transferred_in': total_transferred_in,
+                    'net_movement': net_movement,
+                    'sales_revenue': sales_revenue,
+                    'purchase_cost': purchase_cost,
+                    'turnover_rate': turnover_rate,
+                    'days_of_inventory': days_of_inventory,
+                })
+                
+            except Exception as e:
+                logger.error(f"Error processing product {product.id} in stock movement: {str(e)}")
+                continue
+        
+        # Safe sorting
+        sort_options = {
+            'sales_revenue': lambda x: x['sales_revenue'],
+            'turnover_rate': lambda x: x['turnover_rate'],
+            'current_stock': lambda x: x['current_stock'],
+            'net_movement': lambda x: x['net_movement'],
+            'days_of_inventory': lambda x: x['days_of_inventory'],
+        }
+        
+        if sort_by in sort_options:
+            try:
+                stock_movement_data.sort(key=sort_options[sort_by], reverse=True)
+            except:
+                stock_movement_data.sort(key=lambda x: x['sales_revenue'], reverse=True)
+        
+        # Safe fast/slow movers
+        fast_movers = [item for item in stock_movement_data if item.get('turnover_rate', 0) > 2]
+        slow_movers = [item for item in stock_movement_data if item.get('turnover_rate', 0) < 0.5 and item.get('current_stock', 0) > 0]
+        
+        context = {
+            'stock_movement_data': stock_movement_data,
+            'fast_movers': fast_movers,
+            'slow_movers': slow_movers,
+            'products': Product.objects.all()[:100],  # Limit for performance
+            'categories': Category.objects.all(),
+            'locations': get_user_locations(request.user),
+            'date_from': date_from,
+            'date_to': date_to,
+            'product_id': product_id,
+            'category_id': category_id,
+            'location_id': location_id,
+            'sort_by': sort_by,
+        }
+        return render(request, 'inventory/reports/stock_movement.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error in stock_movement_report: {str(e)}")
+        return render(request, 'inventory/reports/stock_movement.html', {
+            'error': 'Unable to generate stock movement report',
+            'stock_movement_data': [],
+            'fast_movers': [],
+            'slow_movers': [],
+            'products': Product.objects.all()[:50],
+            'categories': Category.objects.all(),
+            'locations': get_user_locations(request.user),
+        })

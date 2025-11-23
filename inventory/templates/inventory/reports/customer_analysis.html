@@ -1,0 +1,597 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h2 class="card-title mb-1">
+                                <i class="fas fa-users me-2"></i>Customer Analysis Report
+                            </h2>
+                            <p class="card-text mb-0">Customer purchasing behavior, profitability, and segmentation analysis</p>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <div class="btn-group">
+                                <button class="btn btn-light btn-lg dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    <i class="fas fa-download me-2"></i>Export
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="#" onclick="printReport()"><i class="fas fa-print me-2"></i>Print Full Report</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="printSummary()"><i class="fas fa-print me-2"></i>Print Summary Only</a></li>
+                                    <li><a class="dropdown-item" href="#"><i class="fas fa-file-csv me-2"></i>Export CSV</a></li>
+                                </ul>
+                                <a href="{% url 'inventory:reports_dashboard' %}" class="btn btn-outline-light btn-lg ms-2">
+                                    <i class="fas fa-arrow-left me-2"></i>Back
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Info Bar -->
+    <div class="row mb-4 d-print-none">
+        <div class="col-12">
+            <div class="card bg-light">
+                <div class="card-body py-2">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <small class="text-muted"><strong>Period:</strong> 
+                                {% if date_from %}{{ date_from }}{% else %}Start{% endif %} 
+                                to {% if date_to %}{{ date_to }}{% else %}End{% endif %}
+                            </small>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted"><strong>Min Orders:</strong> {{ min_orders }}+ orders</small>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted"><strong>Customers:</strong> {{ total_customers }}</small>
+                        </div>
+                        <div class="col-md-3 text-end">
+                            <small class="text-muted"><strong>Generated:</strong> <span class="generated-timestamp">{% now "M d, Y H:i" %}</span></small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters (Hidden when printing) -->
+    <div class="row mb-4 d-print-none filters-section">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-filter me-2"></i>Report Filters
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-3">
+                            <label for="date_from" class="form-label">Date From</label>
+                            <input type="date" class="form-control" id="date_from" name="date_from" value="{{ date_from }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="date_to" class="form-label">Date To</label>
+                            <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="min_orders" class="form-label">Min Orders</label>
+                            <input type="number" class="form-control" id="min_orders" name="min_orders" value="{{ min_orders }}" min="1">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="location" class="form-label">Location</label>
+                            <select class="form-select" id="location" name="location">
+                                <option value="">All Locations</option>
+                                {% for location in locations %}
+                                <option value="{{ location.id }}" {% if location_id == location.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ location.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="sort_by" class="form-label">Sort By</label>
+                            <select class="form-select" id="sort_by" name="sort_by">
+                                <option value="total_spent" {% if sort_by == 'total_spent' %}selected{% endif %}>Total Spent</option>
+                                <option value="order_count" {% if sort_by == 'order_count' %}selected{% endif %}>Order Count</option>
+                                <option value="avg_order_value" {% if sort_by == 'avg_order_value' %}selected{% endif %}>Avg Order Value</option>
+                                <option value="total_profit" {% if sort_by == 'total_profit' %}selected{% endif %}>Total Profit</option>
+                                <option value="profit_margin" {% if sort_by == 'profit_margin' %}selected{% endif %}>Profit Margin</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-filter me-1"></i>Apply Filters
+                            </button>
+                            <a href="{% url 'inventory:customer_analysis_report' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-refresh me-1"></i>Reset
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Executive Summary -->
+    <div class="row mb-4 printable-section">
+        <div class="col-12">
+            <div class="card border-dark">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold">
+                        <i class="fas fa-chart-pie me-2"></i>Executive Summary
+                    </h6>
+                    <button class="btn btn-sm btn-outline-light d-print-none" onclick="printSection(this)">
+                        <i class="fas fa-print me-1"></i>Print Summary
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3 border-end">
+                            <h4 class="text-primary">{{ total_customers|intcomma }}</h4>
+                            <small class="text-muted">Total Customers</small>
+                        </div>
+                        <div class="col-md-3 border-end">
+                            <h4 class="text-success">UGX {{ total_revenue|floatformat:0|intcomma }}</h4>
+                            <small class="text-muted">Total Revenue</small>
+                        </div>
+                        <div class="col-md-3 border-end">
+                            <h4 class="text-info">UGX {{ total_profit|floatformat:0|intcomma }}</h4>
+                            <small class="text-muted">Total Profit</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 class="text-warning">UGX {{ avg_customer_value|floatformat:0|intcomma }}</h4>
+                            <small class="text-muted">Avg Customer Value</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer Segments -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card border-success h-100 printable-section">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-crown me-2"></i>VIP Customers
+                    </h6>
+                    <button class="btn btn-sm btn-outline-light d-print-none" onclick="printSection(this)">
+                        <i class="fas fa-print"></i>
+                    </button>
+                </div>
+                <div class="card-body">
+                    <h3 class="text-success">{{ customer_segments.vip|length }}</h3>
+                    <p class="text-muted">Top 20% by spending</p>
+                    {% if customer_segments.vip %}
+                    <div class="mt-3">
+                        {% for customer in customer_segments.vip|slice:":3" %}
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-truncate" style="max-width: 120px;">{{ customer.customer.name|default:"Unknown Customer" }}</span>
+                            <strong>UGX {{ customer.total_spent|floatformat:0|intcomma }}</strong>
+                        </div>
+                        {% endfor %}
+                        {% if customer_segments.vip|length > 3 %}
+                        <small class="text-muted">+{{ customer_segments.vip|length|add:"-3" }} more</small>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-warning h-100 printable-section">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-user-check me-2"></i>Regular Customers
+                    </h6>
+                    <button class="btn btn-sm btn-outline-dark d-print-none" onclick="printSection(this)">
+                        <i class="fas fa-print"></i>
+                    </button>
+                </div>
+                <div class="card-body">
+                    <h3 class="text-warning">{{ customer_segments.regular|length }}</h3>
+                    <p class="text-muted">Middle 60% by spending</p>
+                    {% if customer_segments.regular %}
+                    <div class="progress mt-3" style="height: 8px;">
+                        <div class="progress-bar bg-warning" style="width: 60%"></div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-info h-100 printable-section">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-user me-2"></i>Occasional Customers
+                    </h6>
+                    <button class="btn btn-sm btn-outline-light d-print-none" onclick="printSection(this)">
+                        <i class="fas fa-print"></i>
+                    </button>
+                </div>
+                <div class="card-body">
+                    <h3 class="text-info">{{ customer_segments.occasional|length }}</h3>
+                    <p class="text-muted">Bottom 20% by spending</p>
+                    {% if customer_segments.occasional %}
+                    <div class="progress mt-3" style="height: 8px;">
+                        <div class="progress-bar bg-info" style="width: 20%"></div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer Performance Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card printable-section">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold">
+                        <i class="fas fa-table me-2"></i>Customer Performance Details
+                    </h6>
+                    <div>
+                        <span class="badge bg-primary">{{ customer_performance|length }} customers</span>
+                        <button class="btn btn-sm btn-outline-primary ms-2 d-print-none" onclick="printSection(this)">
+                            <i class="fas fa-print me-1"></i>Print Table
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if customer_performance %}
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Customer</th>
+                                    <th>Orders</th>
+                                    <th>Total Spent</th>
+                                    <th>Avg Order</th>
+                                    <th>Total Profit</th>
+                                    <th>Margin</th>
+                                    <th>Products</th>
+                                    <th>Last Order</th>
+                                    <th>Segment</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for customer in customer_performance %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ customer.customer.name|default:"Unknown Customer" }}</strong>
+                                        {% if customer.customer.phone %}
+                                        <br><small class="text-muted">{{ customer.customer.phone }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ customer.order_count }}</td>
+                                    <td><strong>UGX {{ customer.total_spent|floatformat:0|intcomma }}</strong></td>
+                                    <td>UGX {{ customer.avg_order_value|floatformat:0|intcomma }}</td>
+                                    <td>UGX {{ customer.total_profit|floatformat:0|intcomma }}</td>
+                                    <td>
+                                        <span class="badge {% if customer.profit_margin > 20 %}bg-success{% elif customer.profit_margin > 10 %}bg-warning{% else %}bg-danger{% endif %}">
+                                            {{ customer.profit_margin|floatformat:1 }}%
+                                        </span>
+                                    </td>
+                                    <td>{{ customer.products_count }}</td>
+                                    <td>{{ customer.last_order_date|date:"M d, Y"|default:"Unknown" }}</td>
+                                    <td>
+                                        {% if customer in customer_segments.vip %}
+                                        <span class="badge bg-danger">VIP</span>
+                                        {% elif customer in customer_segments.regular %}
+                                        <span class="badge bg-warning">Regular</span>
+                                        {% else %}
+                                        <span class="badge bg-success">Occasional</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-users fa-4x text-muted mb-3"></i>
+                        <h5 class="text-muted">No Customer Data Available</h5>
+                        <p class="text-muted">Try adjusting your filters or check if there are any customer sales data.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Print Styles (Same as your product template) -->
+<style>
+@media print {
+    .d-print-none, .btn, .dropdown, .navbar, .breadcrumb, .footer,
+    .filters-section, .section-print-btn {
+        display: none !important;
+    }
+    
+    .container-fluid {
+        padding: 0 !important;
+        max-width: 100% !important;
+    }
+    
+    .card {
+        border: 1px solid #000 !important;
+        box-shadow: none !important;
+        margin-bottom: 15px !important;
+        page-break-inside: avoid;
+    }
+    
+    .card-header {
+        background-color: #f8f9fa !important;
+        color: #000 !important;
+        border-bottom: 2px solid #000 !important;
+    }
+    
+    .table {
+        border: 1px solid #000 !important;
+        font-size: 11px !important;
+    }
+    
+    .table th {
+        background-color: #f8f9fa !important;
+        color: #000 !important;
+        border-bottom: 2px solid #000 !important;
+    }
+    
+    .table td, .table th {
+        border: 1px solid #ddd !important;
+        padding: 4px !important;
+    }
+    
+    .text-primary, .text-success, .text-warning, .text-danger,
+    .text-info, .text-secondary {
+        color: #000 !important;
+    }
+    
+    .bg-primary, .bg-success, .bg-warning, .bg-danger,
+    .bg-info, .bg-secondary, .bg-dark {
+        background-color: #f8f9fa !important;
+        color: #000 !important;
+    }
+    
+    .badge {
+        background-color: #f8f9fa !important;
+        color: #000 !important;
+        border: 1px solid #000 !important;
+    }
+    
+    .progress {
+        border: 1px solid #000 !important;
+        background-color: #fff !important;
+    }
+    
+    .progress-bar {
+        background-color: #666 !important;
+    }
+    
+    .printable-section {
+        page-break-inside: avoid;
+    }
+    
+    @page {
+        margin: 1cm;
+        @top-center {
+            content: "Customer Analysis Report";
+            font-size: 12px;
+            color: #666;
+        }
+        @bottom-center {
+            content: "Page " counter(page) " of " counter(pages);
+            font-size: 10px;
+            color: #666;
+        }
+    }
+}
+
+/* Screen styles */
+.card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+}
+
+.printable-section {
+    position: relative;
+}
+
+.section-print-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+}
+</style>
+
+<script>
+// Reuse the same JavaScript functions from your product template
+function printReport() {
+    window.print();
+}
+
+function printSummary() {
+    const summarySections = document.querySelectorAll('.printable-section');
+    const originalContent = document.body.innerHTML;
+    
+    let summaryHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Customer Analysis Summary</title>
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    margin: 20px;
+                    color: #000;
+                }
+                .card { 
+                    border: 1px solid #000; 
+                    margin-bottom: 15px; 
+                    page-break-inside: avoid;
+                }
+                .card-header { 
+                    background-color: #f8f9fa; 
+                    padding: 10px; 
+                    border-bottom: 2px solid #000;
+                    font-weight: bold;
+                }
+                .table { 
+                    width: 100%; 
+                    border-collapse: collapse; 
+                    font-size: 11px;
+                }
+                .table th, .table td { 
+                    border: 1px solid #ddd; 
+                    padding: 4px; 
+                    text-align: left;
+                }
+                .table th { 
+                    background-color: #f8f9fa; 
+                }
+                @media print {
+                    .no-print { display: none; }
+                    @page { margin: 1cm; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="no-print" style="margin-bottom: 20px; text-align: center;">
+                <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Print Summary
+                </button>
+                <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;">
+                    Close
+                </button>
+            </div>
+            <div class="report-title">
+                <h2>Customer Analysis Report - Summary</h2>
+                <p>Generated on: <span class="generated-timestamp">${new Date().toLocaleString()}</span></p>
+            </div>
+    `;
+    
+    summarySections.forEach(section => {
+        if (!section.querySelector('.card-body table')) {
+            summaryHTML += section.outerHTML;
+        }
+    });
+    
+    summaryHTML += '</body></html>';
+    
+    document.body.innerHTML = summaryHTML;
+    window.print();
+    document.body.innerHTML = originalContent;
+    window.location.reload();
+}
+
+function printSection(button) {
+    const section = button.closest('.printable-section');
+    const originalContent = document.body.innerHTML;
+    const sectionContent = section.outerHTML;
+    
+    document.body.innerHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Customer Analysis Section</title>
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    margin: 20px;
+                    color: #000;
+                }
+                .card { 
+                    border: 1px solid #000; 
+                    margin-bottom: 15px; 
+                }
+                .card-header { 
+                    background-color: #f8f9fa; 
+                    padding: 10px; 
+                    border-bottom: 2px solid #000;
+                    font-weight: bold;
+                }
+                .table { 
+                    width: 100%; 
+                    border-collapse: collapse; 
+                }
+                .table th, .table td { 
+                    border: 1px solid #ddd; 
+                    padding: 6px; 
+                    text-align: left;
+                }
+                .table th { 
+                    background-color: #f8f9fa; 
+                }
+                @media print {
+                    .no-print { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="no-print" style="margin-bottom: 20px; text-align: center;">
+                <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Print This Section
+                </button>
+                <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;">
+                    Close
+                </button>
+            </div>
+            ${sectionContent}
+        </body>
+        </html>
+    `;
+    
+    window.print();
+    document.body.innerHTML = originalContent;
+    window.location.reload();
+}
+
+// Initialize print functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const printableSections = document.querySelectorAll('.printable-section');
+    printableSections.forEach(section => {
+        const header = section.querySelector('.card-header');
+        if (header && !header.querySelector('.section-print-btn')) {
+            const printBtn = document.createElement('button');
+            printBtn.className = 'btn btn-sm btn-outline-primary section-print-btn d-print-none';
+            printBtn.innerHTML = '<i class="fas fa-print me-1"></i>';
+            printBtn.title = 'Print this section';
+            printBtn.onclick = function() {
+                printSection(this);
+            };
+            header.appendChild(printBtn);
+        }
+    });
+    
+    // Auto-submit form when filters change
+    document.getElementById('sort_by')?.addEventListener('change', function() {
+        this.form.submit();
+    });
+});
+
+// Update timestamp before printing
+window.addEventListener('beforeprint', function() {
+    const timestampElements = document.querySelectorAll('.generated-timestamp');
+    const now = new Date();
+    timestampElements.forEach(el => {
+        el.textContent = now.toLocaleString();
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,30 @@
+"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Report Error</title>
+    <style>
+        .error-container { max-width: 800px; margin: 50px auto; padding: 20px; }
+        .alert { padding: 20px; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-radius: 5px; }
+        .debug-info { background: #f8f9fa; padding: 15px; margin-top: 20px; border-radius: 5px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="alert">
+            <h2>Report Generation Failed</h2>
+            <p><strong>Error:</strong> {{ error_message }}</p>
+            
+            {% if debug_info %}
+            <div class="debug-info">
+                <h4>Debug Information:</h4>
+                <pre>{{ debug_info }}</pre>
+            </div>
+            {% endif %}
+            
+            <p><a href="{% url 'dashboard' %}">Return to Dashboard</a></p>
+        </div>
+    </div>
+</body>
+</html>
+"""
